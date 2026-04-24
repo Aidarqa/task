@@ -1,0 +1,685 @@
+@page "/chats"
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject ChatClientService ChatSvc
+@inject EmployeeService EmployeeSvc
+@inject NotificationClientService NotifSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
+@inject FileDownloadService FileDownloader
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>@L["chat_title"] - @L["app_name"]</PageTitle>
+
+<MudStack Style="height: calc(100vh - 64px);">
+    <div class="chat-page-shell">
+        <div class="chat-page-header">
+            <div>
+                <MudText Typo="Typo.h4" Class="chat-page-title">@L["chat_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="chat-page-subtitle">
+                    @L["chat_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="chats-layout-modern">
+            <!-- Sidebar -->
+            <MudPaper Class="chats-sidebar-modern" Elevation="0">
+                <div class="chats-sidebar-header-modern">
+                    <div>
+                        <MudText Typo="Typo.h6" Class="sidebar-title">@L["chat_title"]</MudText>
+                        <MudText Typo="Typo.caption" Class="sidebar-subtitle">
+                            @L["chat_sidebar_subtitle"]
+                        </MudText>
+                    </div>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                   Size="Size.Medium"
+                                   Color="Color.Primary"
+                                   OnClick="OpenNewChat"
+                                   Class="new-chat-btn" />
+                </div>
+
+                <div class="chat-search-wrap">
+                    <MudTextField @bind-Value="_search"
+                                  Placeholder="@L["search"]"
+                                  Dense="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined"
+                                  FullWidth="true" />
+                </div>
+
+                <div class="chats-list-modern">
+                    @if (_chats.Count == 0)
+                    {
+                        <div class="chat-list-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.Forum" Size="Size.Large" />
+                            <MudText Typo="Typo.body2">@L["chat_no_chats"]</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var chat in FilteredChats)
+                        {
+                            var itemClass = $"chat-item-modern {(_activeChatId == chat.Id ? "chat-item-modern--active" : "")}";
+
+                            <div class="@itemClass"
+                                 @onclick="@(() => SelectChat(chat))">
+                                <div class="chat-avatar-wrap">
+                                    <div class="chat-avatar-modern" style="background:@(chat.AvatarColor ?? "#579DFF")">
+                                        @GetChatInitial(chat)
+                                    </div>
+                                    @if (IsOtherUserOnline(chat))
+                                    {
+                                        <span class="online-dot"></span>
+                                    }
+                                </div>
+
+                                <div class="chat-item-main">
+                                    <div class="chat-item-topline">
+                                        <div class="chat-item-name-modern">@GetChatName(chat)</div>
+
+                                        @if (chat.UnreadCount > 0)
+                                        {
+                                            <div class="chat-unread-badge-modern">@chat.UnreadCount</div>
+                                        }
+                                    </div>
+
+                                    <div class="chat-item-bottomline">
+                                        @if (chat.LastMessage is not null)
+                                        {
+                                            <div class="chat-item-preview-modern">@chat.LastMessage</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="chat-item-preview-modern chat-item-preview-modern--muted">
+                                                @L["chat_no_last_message"]
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="chat-item-actions">
+                                    <button type="button"
+                                            class="chat-delete-btn"
+                                            title="@L["chat_delete"]"
+                                            @onclick="@(() => ConfirmDeleteChatAsync(chat))"
+                                            @onclick:stopPropagation="true">
+                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" />
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </MudPaper>
+
+            <!-- Main -->
+            <MudPaper Class="chats-main-modern" Elevation="0">
+                @if (_activeChat is null)
+                {
+                    <div class="chat-empty-state">
+                        <div class="chat-empty-icon-wrap">
+                            <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Large" />
+                        </div>
+                        <MudText Typo="Typo.h6">@L["chat_select"]</MudText>
+                        <MudText Typo="Typo.body2" Class="chat-empty-subtitle">
+                            @L["chat_empty_hint"]
+                        </MudText>
+                    </div>
+                }
+                else
+                {
+                    <div class="chats-main-header-modern">
+                        <div class="chat-header-left">
+                            <div class="chat-avatar-wrap">
+                                <div class="chat-header-avatar" style="background:@(_activeChat.AvatarColor ?? "#579DFF")">
+                                    @GetChatInitial(_activeChat)
+                                </div>
+                                @if (IsActiveChatPartnerOnline())
+                                {
+                                    <span class="online-dot online-dot--header"></span>
+                                }
+                            </div>
+
+                            <div>
+                                <MudText Typo="Typo.h6" Class="chat-header-title">
+                                    @GetChatName(_activeChat)
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="chat-header-subtitle">
+                                    @if (IsActiveChatPartnerOnline())
+                                    {
+                                        <span class="online-status-text">онлайн</span>
+                                    }
+                                    else
+                                    {
+                                        @(_activeChat.Members.Count + " " + L["chat_participants"])
+                                    }
+                                </MudText>
+                            </div>
+                        </div>
+
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                       Color="Color.Error"
+                                       Class="chat-header-delete-btn"
+                                       OnClick="@(() => ConfirmDeleteChatAsync(_activeChat))" />
+                    </div>
+
+                    <div class="messages-area-modern" @ref="_messagesContainer">
+                        @if (_loadingMessages)
+                        {
+                            <div class="chat-loading-state">
+                                <MudProgressCircular Indeterminate="true" Size="Size.Medium" Color="Color.Primary" />
+                            </div>
+                        }
+                        else if (_messages.Count == 0)
+                        {
+                            <div class="chat-loading-state">
+                                <MudIcon Icon="@Icons.Material.Filled.MarkChatRead" Size="Size.Large" Style="opacity:.35" />
+                                <MudText Typo="Typo.body2" Style="opacity:.65">@L["chat_no_messages"]</MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var m in _messages)
+                            {
+                                var bubbleClass = $"message-row-modern {(m.IsOwn ? "message-row-modern--own" : "message-row-modern--other")}";
+
+                                <div class="@bubbleClass">
+                                    <div class="message-bubble-modern @(m.IsDeleted ? "message-bubble-modern--deleted" : "")">
+                                        @if (!m.IsOwn)
+                                        {
+                                            <div class="message-sender-modern">@m.SenderName</div>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(m.Text))
+                                        {
+                                            <div class="message-text-modern">@m.Text</div>
+                                        }
+
+                                        @if (m.Attachments?.Count > 0)
+                                        {
+                                            <div class="chat-attachment-stack">
+                                                @foreach (var attachment in m.Attachments)
+                                                {
+                                                    <button type="button"
+                                                            @onclick="@(() => DownloadAttachmentAsync(attachment))"
+                                                            class="chat-attachment-pill">
+                                                        <span class="chat-attachment-icon @GetAttachmentAccentClass(attachment)">
+                                                            <MudIcon Icon="@GetAttachmentIcon(attachment)" />
+                                                        </span>
+
+                                                        <span class="chat-attachment-copy">
+                                                            <span class="chat-attachment-name">@attachment.FileName</span>
+                                                            <span class="chat-attachment-meta">@FormatBytes(attachment.Size)</span>
+                                                        </span>
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+
+                                        <div class="message-footer-modern">
+                                            <span class="message-time-modern">
+                                                @KyrgyzstanTime.FormatDateTime(m.SentAt)
+                                            </span>
+
+                                            @if (m.IsOwn && !m.IsDeleted)
+                                            {
+                                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                               Size="Size.Small"
+                                                               Class="message-delete-btn-modern"
+                                                               OnClick="@(() => DeleteMessage(m.Id))" />
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <div class="message-input-bar-modern">
+                        <MudTextField @bind-Value="_newMessage"
+                                      Placeholder="@L["chat_placeholder"]"
+                                      Variant="Variant.Outlined"
+                                      Lines="2" Margin="Margin.Dense"
+                                      AutoGrow="true"
+                                      Style="flex:1"
+                                      @onkeydown="@(async e => { if (e.Key == "Enter" && !e.ShiftKey) await SendMessage(); })" />
+
+                        <InputFile id="chat-file-upload"
+                                   class="file-picker-input"
+                                   accept="@FileUploadRules.AcceptAttribute"
+                                   OnChange="UploadFilesAsync"
+                                   multiple />
+                        <label for="chat-file-upload" class="file-picker-trigger file-picker-trigger--chat" title="@L["chat_send_files"]">
+                            <MudIcon Icon="@Icons.Material.Filled.AttachFile" />
+                        </label>
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Send"
+                                   OnClick="SendMessage"
+                                   Disabled="@string.IsNullOrWhiteSpace(_newMessage)"
+                                   Class="send-btn-modern">
+                            @L["chat_send"]
+                        </MudButton>
+                    </div>
+                }
+            </MudPaper>
+        </div>
+    </div>
+</MudStack>
+
+<MudDialog @bind-Visible="_newChatOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["chat_new"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="new-chat-dialog-body">
+            <MudToggleGroup T="string"
+                            @bind-Value="_newChatType"
+                            FullWidth="true"
+                            Class="mb-4 new-chat-toggle">
+                <MudToggleItem Value="@("direct")">@L["chat_type_direct"]</MudToggleItem>
+                <MudToggleItem Value="@("group")">@L["chat_type_group"]</MudToggleItem>
+            </MudToggleGroup>
+
+            @if (_newChatType == "direct")
+            {
+                <MudSelect T="string?"
+                           @bind-Value="_targetUserId"
+                           Label="@L["chat_user"]"
+                           Variant="Variant.Outlined"
+                           Required="true">
+                    @foreach (var u in _users)
+                    {
+                        <MudSelectItem Value="@u.Id">@u.UserName</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            else
+            {
+                <MudTextField @bind-Value="_groupName"
+                              Label="@L["chat_group_name"]"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              Required="true" />
+
+                <MudSelect T="string"
+                           @bind-SelectedValues="_selectedMemberIds"
+                           Label="@L["chat_members"]"
+                           MultiSelection="true"
+                           Variant="Variant.Outlined">
+                    @foreach (var u in _users)
+                    {
+                        <MudSelectItem Value="@u.Id">@u.UserName</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="@(() => _newChatOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateChat">
+            @L["btn_create"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    // Query param: /chats?chatId=... в†’ auto-open that chat
+    [SupplyParameterFromQuery(Name = "chatId")]
+    private string? ChatIdParam { get; set; }
+
+    private List<ChatSummaryDto> _chats = [];
+    private List<ChatMessageDto> _messages = [];
+    private ChatSummaryDto? _activeChat;
+    private Guid? _activeChatId;
+    private string _search = "";
+    private string _newMessage = "";
+    private bool _loadingMessages;
+    private bool _newChatOpen;
+    private string _newChatType = "direct";
+    private string? _targetUserId;
+    private string _groupName = "";
+    private IEnumerable<string> _selectedMemberIds = [];
+    private List<UserDto> _users = [];
+    private ElementReference _messagesContainer;
+    private string _currentUserId = "";
+    private bool _shouldScrollToBottom;
+
+    private IEnumerable<ChatSummaryDto> FilteredChats => string.IsNullOrWhiteSpace(_search)
+        ? _chats
+        : _chats.Where(c => GetChatName(c).Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        NotifSvc.OnNotification += OnChatNotificationReceived;
+        NotifSvc.OnPresenceChanged += OnPresenceChanged;
+        ChatSvc.OnNewMessage += OnNewMessage;
+        _users = await EmployeeSvc.GetAllAsync();
+        _chats = await ChatSvc.GetChatsAsync();
+
+        // Auto-open chat from query param (e.g. clicked a notification)
+        if (ChatIdParam is not null && Guid.TryParse(ChatIdParam, out var chatId))
+        {
+            var chat = _chats.FirstOrDefault(c => c.Id == chatId);
+            if (chat is not null)
+                await SelectChat(chat);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle navigation to a different chat while already on ChatsPage
+        if (_chats.Count > 0
+         && ChatIdParam is not null
+         && Guid.TryParse(ChatIdParam, out var chatId)
+         && _activeChatId != chatId)
+        {
+            var chat = _chats.FirstOrDefault(c => c.Id == chatId);
+            if (chat is not null)
+                await SelectChat(chat);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldScrollToBottom)
+        {
+            _shouldScrollToBottom = false;
+            await JS.InvokeVoidAsync("eval",
+                "var c=document.querySelector('.messages-area-modern');if(c)c.scrollTop=c.scrollHeight");
+        }
+    }
+
+    private async Task SelectChat(ChatSummaryDto chat)
+    {
+        if (_activeChatId.HasValue)
+            await ChatSvc.LeaveChatAsync(_activeChatId.Value);
+
+        _activeChat = chat;
+        _activeChatId = chat.Id;
+        _loadingMessages = true;
+        StateHasChanged();
+
+        await ChatSvc.ConnectAsync(chat.Id);
+        _messages = await ChatSvc.GetMessagesAsync(chat.Id);
+
+        // Reset badge for this chat
+        chat = chat with { UnreadCount = 0 };
+        var idx = _chats.FindIndex(c => c.Id == chat.Id);
+        if (idx >= 0) _chats[idx] = chat;
+
+        _loadingMessages = false;
+        _shouldScrollToBottom = true;
+
+        // Mark chat notifications for this chat as read
+        _ = NotifSvc.MarkChatNotificationsReadAsync(chat.Id);
+    }
+
+    // Called by ChatHub only for the currently joined chat
+    private void OnNewMessage(NewMessageEvent evt)
+    {
+        if (evt.ChatId == _activeChatId)
+        {
+            // Own messages are added locally in SendMessage; skip the SignalR echo
+            if (evt.Message.SenderId == _currentUserId) return;
+            _messages.Add(evt.Message);
+            _shouldScrollToBottom = true;
+            _ = InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            // ChatHub won't send this (user isn't in that group), but handle defensively
+            UpdateChatBadge(evt.ChatId, evt.Message.Text);
+        }
+    }
+
+    // Called by NotificationHub for all chat messages, including non-active chats
+    private void OnChatNotificationReceived(NotificationDto notif)
+    {
+        if (notif.NotificationType != NotificationType.Chat) return;
+        if (notif.RelatedEntityId is null) return;
+        if (!Guid.TryParse(notif.RelatedEntityId, out var chatId)) return;
+        if (chatId == _activeChatId) return; // already shown via ChatHub
+
+        UpdateChatBadge(chatId, notif.Body);
+    }
+
+    private void UpdateChatBadge(Guid chatId, string? lastMessage)
+    {
+        var idx = _chats.FindIndex(c => c.Id == chatId);
+        if (idx >= 0)
+        {
+            var c = _chats[idx];
+            _chats[idx] = c with { LastMessage = lastMessage, UnreadCount = c.UnreadCount + 1 };
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (_activeChatId is null || string.IsNullOrWhiteSpace(_newMessage)) return;
+        var text = _newMessage;
+        _newMessage = "";
+        var msg = await ChatSvc.SendMessageAsync(_activeChatId.Value, text);
+        if (msg is not null)
+        {
+            _messages.Add(msg with { IsOwn = true });
+            _shouldScrollToBottom = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadFilesAsync(InputFileChangeEventArgs args)
+    {
+        if (_activeChatId is null)
+            return;
+
+        var files = args.GetMultipleFiles().ToList();
+        if (files.Count == 0)
+            return;
+
+        var caption = _newMessage;
+        _newMessage = "";
+
+        try
+        {
+            var message = await ChatSvc.SendFilesAsync(_activeChatId.Value, files, caption);
+            if (message is not null)
+            {
+                _messages.Add(message with { IsOwn = true });
+                _shouldScrollToBottom = true;
+                Snackbar.Add(L["chat_files_sent"], Severity.Success);
+                StateHasChanged();
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task DeleteMessage(Guid msgId)
+    {
+        if (_activeChatId is null) return;
+        await ChatSvc.DeleteMessageAsync(_activeChatId.Value, msgId);
+        var idx = _messages.FindIndex(m => m.Id == msgId);
+        if (idx >= 0) _messages[idx] = _messages[idx] with { IsDeleted = true, Text = L["chat_msg_deleted"], Attachments = [] };
+    }
+
+    private async Task ConfirmDeleteChatAsync(ChatSummaryDto? chat)
+    {
+        if (chat is null)
+            return;
+
+        var chatName = GetChatName(chat);
+        var confirmed = await DialogService.ShowMessageBox(
+            L["chat_delete_title"],
+            string.Format(L["chat_delete_confirm"], chatName),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed == true)
+            await DeleteChatAsync(chat);
+    }
+
+    private async Task DeleteChatAsync(ChatSummaryDto chat)
+    {
+        await ChatSvc.DeleteChatAsync(chat.Id);
+
+        if (_activeChatId == chat.Id)
+        {
+            await ChatSvc.LeaveChatAsync(chat.Id);
+            _activeChatId = null;
+            _activeChat = null;
+            _messages = [];
+        }
+
+        _chats.RemoveAll(c => c.Id == chat.Id);
+        Snackbar.Add(L["chat_deleted"], Severity.Info);
+    }
+
+    private async Task DownloadAttachmentAsync(FileAttachmentDto attachment)
+    {
+        try
+        {
+            await FileDownloader.DownloadAsync(attachment.DownloadUrl, attachment.FileName);
+        }
+        catch
+        {
+            Snackbar.Add(L["msg_download_failed"], Severity.Error);
+        }
+    }
+
+    private static string GetAttachmentIcon(FileAttachmentDto attachment)
+    {
+        var name = attachment.FileName.ToLowerInvariant();
+        var contentType = attachment.ContentType?.ToLowerInvariant() ?? string.Empty;
+
+        if (contentType.StartsWith("image/") || name.EndsWith(".png") || name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".gif") || name.EndsWith(".webp"))
+            return Icons.Material.Filled.Image;
+        if (contentType.StartsWith("video/") || name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".avi"))
+            return Icons.Material.Filled.Movie;
+        if (contentType.StartsWith("audio/") || name.EndsWith(".mp3") || name.EndsWith(".wav") || name.EndsWith(".ogg"))
+            return Icons.Material.Filled.Audiotrack;
+        if (name.EndsWith(".pdf"))
+            return Icons.Material.Filled.PictureAsPdf;
+        if (name.EndsWith(".doc") || name.EndsWith(".docx") || name.EndsWith(".txt") || name.EndsWith(".rtf"))
+            return Icons.Material.Filled.Description;
+        if (name.EndsWith(".xls") || name.EndsWith(".xlsx") || name.EndsWith(".csv"))
+            return Icons.Material.Filled.TableChart;
+        if (name.EndsWith(".zip") || name.EndsWith(".rar") || name.EndsWith(".7z"))
+            return Icons.Material.Filled.FolderZip;
+
+        return Icons.Material.Filled.InsertDriveFile;
+    }
+
+    private static string GetAttachmentAccentClass(FileAttachmentDto attachment)
+    {
+        var name = attachment.FileName.ToLowerInvariant();
+        var contentType = attachment.ContentType?.ToLowerInvariant() ?? string.Empty;
+
+        if (contentType.StartsWith("image/") || name.EndsWith(".png") || name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".gif") || name.EndsWith(".webp"))
+            return "attachment-icon--image";
+        if (contentType.StartsWith("video/") || name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".avi"))
+            return "attachment-icon--video";
+        if (contentType.StartsWith("audio/") || name.EndsWith(".mp3") || name.EndsWith(".wav") || name.EndsWith(".ogg"))
+            return "attachment-icon--audio";
+        if (name.EndsWith(".pdf"))
+            return "attachment-icon--pdf";
+        if (name.EndsWith(".doc") || name.EndsWith(".docx") || name.EndsWith(".txt") || name.EndsWith(".rtf"))
+            return "attachment-icon--doc";
+        if (name.EndsWith(".xls") || name.EndsWith(".xlsx") || name.EndsWith(".csv"))
+            return "attachment-icon--sheet";
+        if (name.EndsWith(".zip") || name.EndsWith(".rar") || name.EndsWith(".7z"))
+            return "attachment-icon--archive";
+
+        return "attachment-icon--default";
+    }
+
+    private void OpenNewChat()
+    {
+        _newChatType = "direct"; _targetUserId = null;
+        _groupName = ""; _selectedMemberIds = [];
+        _newChatOpen = true;
+    }
+
+    private async Task CreateChat()
+    {
+        Guid chatId;
+        if (_newChatType == "direct" && _targetUserId is not null)
+            chatId = await ChatSvc.CreateDirectAsync(_targetUserId);
+        else if (!string.IsNullOrWhiteSpace(_groupName))
+            chatId = await ChatSvc.CreateGroupAsync(_groupName, _selectedMemberIds.ToArray());
+        else return;
+
+        _newChatOpen = false;
+        _chats = await ChatSvc.GetChatsAsync();
+        var chat = _chats.FirstOrDefault(c => c.Id == chatId);
+        if (chat is not null) await SelectChat(chat);
+    }
+
+    private string GetChatName(ChatSummaryDto c)
+    {
+        if (c.ChatType != ChatType.Direct) return c.Name ?? L["chat_type_group"];
+        return c.Members.FirstOrDefault(m => m.UserId != _currentUserId)?.UserName ?? c.Name ?? L["chat_title"];
+    }
+
+    private string GetChatInitial(ChatSummaryDto c)
+        => GetChatName(c).Length > 0 ? GetChatName(c)[0].ToString().ToUpper() : "?";
+
+    private string GetCurrentUserId() => _currentUserId;
+
+    private static string FormatBytes(long size)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double value = size;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value:0.#} {units[unitIndex]}";
+    }
+
+    private void OnPresenceChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private bool IsOtherUserOnline(ChatSummaryDto chat)
+    {
+        if (chat.ChatType != ChatType.Direct) return false;
+        var otherId = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId)?.UserId;
+        return otherId is not null && NotifSvc.OnlineUserIds.Contains(otherId);
+    }
+
+    private bool IsActiveChatPartnerOnline()
+    {
+        if (_activeChat?.ChatType != ChatType.Direct) return false;
+        var otherId = _activeChat.Members.FirstOrDefault(m => m.UserId != _currentUserId)?.UserId;
+        return otherId is not null && NotifSvc.OnlineUserIds.Contains(otherId);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        NotifSvc.OnNotification -= OnChatNotificationReceived;
+        NotifSvc.OnPresenceChanged -= OnPresenceChanged;
+        ChatSvc.OnNewMessage -= OnNewMessage;
+        if (_activeChatId.HasValue)
+            await ChatSvc.LeaveChatAsync(_activeChatId.Value);
+    }
+}

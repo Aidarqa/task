@@ -1,0 +1,293 @@
+@inherits LocalizedLayoutBase
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject NotificationClientService NotificationSvc
+@inject ThemeService ThemeSvc
+@inject Blazored.LocalStorage.ILocalStorageService Storage
+@inject ISnackbar Snackbar
+
+<MudLayout>
+    <MudAppBar Elevation="0" Dense="true" Class="app-topbar">
+        <MudIconButton Icon="@Icons.Material.Outlined.Menu"
+                       OnClick="ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2 app-logo">@L["app_name"]</MudText>
+        <MudSpacer />
+
+        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" Class="mr-2 lang-switcher">
+            <MudButton OnClick='@(() => SetLang("ru"))'
+                       Color="@(L.Lang == "ru" ? Color.Primary : Color.Default)">@L["settings_lang_ru"]</MudButton>
+            <MudButton OnClick='@(() => SetLang("ky"))'
+                       Color="@(L.Lang == "ky" ? Color.Primary : Color.Default)">@L["settings_lang_ky"]</MudButton>
+        </MudButtonGroup>
+
+        <MudIconButton Icon="@(ThemeSvc.IsDark ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
+                       OnClick="ToggleTheme" Size="Size.Small" Class="mr-1" />
+
+        <AuthorizeView>
+            <Authorized>
+                <MudMenu AnchorOrigin="Origin.BottomRight"
+                         TransformOrigin="Origin.TopRight"
+                         Dense="true">
+                    <ActivatorContent>
+                        <MudBadge Content="@_unreadCount" Color="Color.Error" Dot
+                                  Overlap="true" Visible="@(_unreadCount > 0)">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Notifications"
+                                           Size="Size.Small" />
+                        </MudBadge>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <div class="notif-dropdown">
+                            <div class="notif-dropdown-header">
+                                <span>@L["notif_title"]</span>
+                                @if (_unreadCount > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error">
+                                        @_unreadCount
+                                    </MudChip>
+                                }
+                            </div>
+                            <MudDivider />
+
+                            @if (_recentNotifications.Count == 0)
+                            {
+                                <div class="notif-dropdown-empty">@L["notif_no_recent"]</div>
+                            }
+                            else
+                            {
+                                @foreach (var n in _recentNotifications.Take(5))
+                                {
+                                    <MudMenuItem OnClick="@(() => OpenNotification(n))">
+                                        <div class="notif-dropdown-item">
+                                            <div class="notif-dropdown-icon"
+                                                 style="@($"--notif-color:{GetNotifColor(n.NotificationType)}")">
+                                                <MudIcon Icon="@GetNotifIcon(n.NotificationType)" Size="Size.Small" />
+                                            </div>
+                                            <div style="min-width:0">
+                                                <div class="notif-dropdown-title @(n.IsRead ? "" : "notif-dropdown-title--unread")">
+                                                    @n.Title
+                                                </div>
+                                                @if (n.Body is not null)
+                                                {
+                                                    <div class="notif-dropdown-body">@n.Body</div>
+                                                }
+                                                <div class="notif-dropdown-time">
+                                                    @KyrgyzstanTime.FormatDateTime(n.CreatedAt)
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </MudMenuItem>
+                                }
+                            }
+
+                            <MudDivider />
+                            <MudMenuItem OnClick="@(() => Nav.NavigateTo("/notifications"))">
+                                <div class="d-flex align-center" style="gap:.35rem;">
+                                    <MudText Typo="Typo.body2" Color="Color.Primary">
+                                        @L["notif_view_all"]
+                                    </MudText>
+                                    <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Primary" />
+                                </div>
+                            </MudMenuItem>
+                        </div>
+                    </ChildContent>
+                </MudMenu>
+
+                <MudText Typo="Typo.body2" Class="mx-2 d-none d-sm-flex user-name-text">
+                    @context.User.Identity?.Name
+                </MudText>
+                <MudIconButton Icon="@Icons.Material.Outlined.Logout"
+                               OnClick="HandleLogout" Size="Size.Small" />
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <AuthorizeView>
+        <Authorized>
+            <MudDrawer @bind-Open="_drawerOpen"
+                       Elevation="0"
+                       Variant="@DrawerVariant.Responsive"
+                       ClipMode="DrawerClipMode.Always"
+                       Class="sidebar-drawer">
+                <MudNavMenu Class="sidebar-nav">
+                    <MudNavLink Href="/" Match="NavLinkMatch.All" Class="nav-dashboard"
+                                Icon="@Icons.Material.Outlined.Dashboard">@L["nav_home"]</MudNavLink>
+                    <MudNavLink Href="/dashboard" Match="NavLinkMatch.Prefix" Class="nav-home"
+                                Icon="@Icons.Material.Outlined.BarChart">@L["nav_dashboard"]</MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="sidebar-section-label">@L["nav_sec_tasks"]</MudText>
+                    <MudNavLink Href="/projects" Match="NavLinkMatch.Prefix" Class="nav-projects"
+                                Icon="@Icons.Material.Outlined.FolderOpen">@L["nav_projects"]</MudNavLink>
+                    <MudNavLink Href="/tasks" Match="NavLinkMatch.Prefix" Class="nav-tasks"
+                                Icon="@Icons.Material.Outlined.Assignment">@L["nav_tasks"]</MudNavLink>
+                    <MudNavLink Href="/todo" Match="NavLinkMatch.Prefix" Class="nav-todo"
+                                Icon="@Icons.Material.Outlined.CheckCircle">@L["nav_todo"]</MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="sidebar-section-label">@L["nav_sec_planning"]</MudText>
+                    <MudNavLink Href="/calendar" Match="NavLinkMatch.Prefix" Class="nav-calendar"
+                                Icon="@Icons.Material.Outlined.CalendarMonth">@L["nav_calendar"]</MudNavLink>
+                    <MudNavLink Href="/bookings" Match="NavLinkMatch.Prefix" Class="nav-bookings"
+                                Icon="@Icons.Material.Outlined.MeetingRoom">@L["nav_bookings"]</MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="sidebar-section-label">@L["nav_sec_comm"]</MudText>
+                    <MudNavLink Href="/chats" Match="NavLinkMatch.Prefix" Class="nav-chats"
+                                Icon="@Icons.Material.Outlined.Chat">
+                        @L["nav_chats"]
+                        @if (_chatUnreadCount > 0 && !Nav.Uri.Contains("/chats"))
+                        {
+                            <MudBadge Content="@_chatUnreadCount" Color="Color.Error" Class="ml-2" />
+                        }
+                    </MudNavLink>
+                    <MudNavLink Href="/notifications" Match="NavLinkMatch.Prefix" Class="nav-notifications"
+                                Icon="@Icons.Material.Outlined.Notifications">
+                        @L["nav_notifications"]
+                        @if (NonChatUnreadCount > 0)
+                        {
+                            <MudBadge Content="@NonChatUnreadCount" Color="Color.Error" Class="ml-2" />
+                        }
+                    </MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="sidebar-section-label">@L["nav_sec_company"]</MudText>
+                    <MudNavLink Href="/employees" Match="NavLinkMatch.Prefix" Class="nav-employees"
+                                Icon="@Icons.Material.Outlined.People">@L["nav_employees"]</MudNavLink>
+
+                    <div class="sidebar-bottom">
+                        <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Class="nav-settings"
+                                    Icon="@Icons.Material.Outlined.Settings">@L["nav_settings"]</MudNavLink>
+                    </div>
+                </MudNavMenu>
+            </MudDrawer>
+        </Authorized>
+    </AuthorizeView>
+
+    <MudMainContent Class="main-content-area">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private int _unreadCount;
+    private int _chatUnreadCount;
+    private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
+    private List<NotificationDto> _recentNotifications = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        ThemeSvc.Changed += OnThemeChanged;
+        NotificationSvc.OnNotification += OnNotificationReceived;
+        NotificationSvc.OnCountChanged += OnCountChangedHandler;
+        Nav.LocationChanged += OnLocationChanged;
+
+        try
+        {
+            var lang = await Storage.GetItemAsStringAsync("lang");
+            if (!string.IsNullOrEmpty(lang))
+                L.Set(lang.Trim('"'));
+
+            var dark = await Storage.GetItemAsync<bool?>("darkMode");
+            if (dark.HasValue)
+                ThemeSvc.Set(dark.Value);
+
+            await NotificationSvc.ConnectAsync();
+            _unreadCount = await NotificationSvc.GetUnreadCountAsync();
+            _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
+            _recentNotifications = (await NotificationSvc.GetAllAsync()).Take(5).ToList();
+        }
+        catch { }
+    }
+
+    private void OnNotificationReceived(NotificationDto notif)
+    {
+        _unreadCount++;
+        if (notif.NotificationType == NotificationType.Chat && !Nav.Uri.Contains("/chats"))
+            _chatUnreadCount++;
+
+        _recentNotifications.Insert(0, notif);
+        if (_recentNotifications.Count > 5)
+            _recentNotifications.RemoveAt(5);
+
+        var msg = notif.Body is not null ? $"{notif.Title}: {notif.Body}" : notif.Title;
+        Snackbar.Add(msg, Severity.Info);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnCountChangedHandler()
+    {
+        try
+        {
+            _unreadCount = await NotificationSvc.GetUnreadCountAsync();
+            _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    private void OpenNotification(NotificationDto notif)
+    {
+        if (!notif.IsRead)
+            _ = NotificationSvc.MarkReadAsync(notif.Id);
+
+        Nav.NavigateTo(notif.Link ?? "/notifications");
+    }
+
+    private static string GetNotifIcon(NotificationType t) => t switch
+    {
+        NotificationType.Task => Icons.Material.Filled.Assignment,
+        NotificationType.Event => Icons.Material.Filled.Event,
+        NotificationType.Booking => Icons.Material.Filled.MeetingRoom,
+        NotificationType.Chat => Icons.Material.Filled.Chat,
+        NotificationType.System => Icons.Material.Filled.FolderOpen,
+        _ => Icons.Material.Filled.Info,
+    };
+
+    private static string GetNotifColor(NotificationType t) => t switch
+    {
+        NotificationType.Task => "#F59E0B",
+        NotificationType.Event => "#3B82F6",
+        NotificationType.Booking => "#10B981",
+        NotificationType.Chat => "#8B5CF6",
+        NotificationType.System => "#6366F1",
+        _ => "#6B7280",
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (e.Location.Contains("/chats"))
+        {
+            _unreadCount = Math.Max(0, _unreadCount - _chatUnreadCount);
+            _chatUnreadCount = 0;
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public override void Dispose()
+    {
+        ThemeSvc.Changed -= OnThemeChanged;
+        NotificationSvc.OnNotification -= OnNotificationReceived;
+        NotificationSvc.OnCountChanged -= OnCountChangedHandler;
+        Nav.LocationChanged -= OnLocationChanged;
+        base.Dispose();
+    }
+
+    private async Task SetLang(string lang)
+    {
+        L.Set(lang);
+        await Storage.SetItemAsStringAsync("lang", lang);
+    }
+
+    private async Task ToggleTheme()
+    {
+        ThemeSvc.Toggle();
+        await Storage.SetItemAsync("darkMode", ThemeSvc.IsDark);
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

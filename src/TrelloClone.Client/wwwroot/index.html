@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskFlow — Kanban Board</title>
+    <base href="/" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
+    <script>
+        window.appFiles = {
+            downloadFile: function (fileName, contentType, bytes) {
+                const blob = new Blob([bytes], { type: contentType || "application/octet-stream" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = fileName || "file";
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+        };
+    </script>
+</head>
+<body>
+    <div id="app">
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1D2125;">
+            <div style="text-align:center;">
+                <svg width="48" height="48" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;">
+                    <circle cx="12" cy="12" r="10" stroke="#579DFF" stroke-width="3" fill="none" stroke-dasharray="31.4" stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+@page "/projects"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject ProjectService ProjectSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>@L["proj_title"] - @L["app_name"]</PageTitle>
+
+<div class="projects-page">
+    <MudPaper Class="projects-toolbar" Elevation="0">
+        <div class="projects-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="projects-page-title">@L["proj_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="projects-page-subtitle">
+                    @L["proj_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="projects-toolbar__right">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreate"
+                       Class="projects-create-btn">
+                @L["proj_new"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="projects-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["proj_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (_projects.Count == 0)
+    {
+        <MudPaper Class="projects-empty-state" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" Class="projects-empty-icon" />
+            <MudText Typo="Typo.h6">@L["proj_no_projects"]</MudText>
+            <MudText Typo="Typo.body2" Class="projects-empty-subtitle">
+                @L["proj_empty_hint"]
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="project-grid-modern">
+            @foreach (var p in _projects)
+            {
+                <MudPaper Class="project-card-modern"
+                          Elevation="0"
+                          @onclick="@(() => Nav.NavigateTo($"/tasks?project={p.Id}"))">
+
+                    <div class="project-card-modern__cover" style="background:@p.Color">
+                        <div class="project-card-modern__cover-overlay"></div>
+                        <div class="project-card-modern__initial">
+                            @p.Name[0].ToString().ToUpper()
+                        </div>
+
+                        <div @onclick:stopPropagation="true" class="project-delete-btn-modern">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteProject(p.Id))" />
+                        </div>
+                    </div>
+
+                    <div class="project-card-modern__body">
+                        <div class="project-card-modern__topline">
+                            <MudText Typo="Typo.subtitle1" Class="project-name-modern">
+                                @p.Name
+                            </MudText>
+
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@GetStatusColor(p.Status)"
+                                     Variant="Variant.Filled">
+                                @GetStatusLabel(p.Status)
+                            </MudChip>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(p.Description))
+                        {
+                            <MudText Typo="Typo.body2" Class="project-desc-modern">
+                                @p.Description
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="project-desc-modern project-desc-modern--muted">
+                                @L["proj_no_desc"]
+                            </MudText>
+                        }
+
+                        <div class="project-signals">
+                            <div class="project-signal">
+                                <span class="project-signal__label">@L["proj_status"]</span>
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Color="@GetTimelineColor(p)"
+                                         Variant="Variant.Outlined">
+                                    @GetTimelineLabel(p)
+                                </MudChip>
+                            </div>
+
+                            <MudText Typo="Typo.caption" Class="project-deadline-summary">
+                                @GetTimelineSummary(p)
+                            </MudText>
+                        </div>
+
+                        <div class="project-meta-modern">
+                            @if (p.StartDate.HasValue)
+                            {
+                                <div class="project-meta-item">
+                                    <MudIcon Icon="@Icons.Material.Filled.PlayCircleOutline" Size="Size.Small" />
+                                    <span>@string.Format(L["proj_meta_start"], FormatProjectDate(p.StartDate.Value))</span>
+                                </div>
+                            }
+
+                            @if (p.EndDate.HasValue)
+                            {
+                                <div class="project-meta-item">
+                                    <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" />
+                                    <span>@string.Format(L["proj_meta_deadline"], FormatProjectDate(p.EndDate.Value))</span>
+                                </div>
+                            }
+
+                            <div class="project-meta-item">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                <span>@p.OwnerName</span>
+                            </div>
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </div>
+    }
+</div>
+
+<MudDialog @bind-Visible="_createOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["proj_new"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="project-dialog-body">
+            <MudTextField @bind-Value="_name"
+                          Label="@L["field_name"]"
+                          Required="true"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudTextField @bind-Value="_desc"
+                          Label="@L["field_desc"]"
+                          Lines="3"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_start"
+                                   Label="@L["field_start"]"
+                                   Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_end"
+                                   Label="@L["proj_deadline"]"
+                                   Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <div class="project-color-section">
+                <MudText Typo="Typo.body2" Class="project-color-label">@L["proj_color"]</MudText>
+
+                <div class="color-picker-row-modern">
+                    @foreach (var c in _colorOptions)
+                    {
+                        var swatchClass = $"color-swatch-modern {(_color == c ? "color-swatch-modern--active" : "")}";
+
+                        <button type="button"
+                                class="@swatchClass"
+                                style="background:@c"
+                                @onclick="@(() => _color = c)">
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="@(() => _createOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync">
+            @L["btn_create"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Project> _projects = [];
+    private bool _loading = true;
+    private bool _createOpen;
+    private string _name = "";
+    private string? _desc;
+    private DateTime? _start;
+    private DateTime? _end;
+    private string _color = "#579DFF";
+    private readonly string[] _colorOptions = ["#579DFF", "#4CAF50", "#FF5722", "#9C27B0", "#FF9800", "#00BCD4", "#795548"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _projects = await ProjectSvc.GetAllAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _name = "";
+        _desc = null;
+        _start = null;
+        _end = null;
+        _color = "#579DFF";
+        _createOpen = true;
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+            return;
+
+        var project = await ProjectSvc.CreateAsync(new CreateProjectRequest(
+            _name,
+            _desc,
+            _color,
+            _start,
+            _end));
+
+        if (project is not null)
+            _projects.Insert(0, project);
+
+        _createOpen = false;
+        Snackbar.Add(L["proj_created"], Severity.Success);
+    }
+
+    private async Task DeleteProject(Guid id)
+    {
+        await ProjectSvc.DeleteAsync(id);
+        _projects.RemoveAll(p => p.Id == id);
+    }
+
+    private static string FormatProjectDate(DateTime value)
+        => KyrgyzstanTime.FormatDateTime(value);
+
+    private Color GetStatusColor(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Active => Color.Success,
+        ProjectStatus.Paused => Color.Warning,
+        ProjectStatus.Completed => Color.Info,
+        ProjectStatus.Archived => Color.Default,
+        _ => Color.Default
+    };
+
+    private string GetStatusLabel(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Active => L["proj_status_active_label"],
+        ProjectStatus.Paused => L["proj_status_paused_label"],
+        ProjectStatus.Completed => L["proj_status_completed_label"],
+        ProjectStatus.Archived => L["proj_status_archived_label"],
+        _ => status.ToString()
+    };
+
+    private Color GetTimelineColor(Project project)
+    {
+        if (project.Status == ProjectStatus.Archived)
+            return Color.Default;
+
+        if (project.Status == ProjectStatus.Completed)
+            return Color.Success;
+
+        var today = KyrgyzstanTime.Today;
+        var startDate = project.StartDate?.Date;
+        var endDate = project.EndDate?.Date;
+
+        if (startDate.HasValue && startDate.Value > today)
+            return Color.Info;
+
+        if (!endDate.HasValue)
+            return Color.Default;
+
+        var daysLeft = (endDate.Value - today).Days;
+        if (daysLeft < 0)
+            return Color.Error;
+
+        return daysLeft <= 3 ? Color.Warning : Color.Info;
+    }
+
+    private string GetTimelineLabel(Project project)
+    {
+        var today = KyrgyzstanTime.Today;
+        var startDate = project.StartDate?.Date;
+        var endDate = project.EndDate?.Date;
+
+        if (project.Status == ProjectStatus.Archived)
+            return L["proj_timeline_archived"];
+
+        if (project.Status == ProjectStatus.Completed)
+            return endDate.HasValue ? string.Format(L["proj_timeline_completed_date"], FormatProjectDate(endDate.Value)) : L["proj_timeline_completed"];
+
+        if (startDate.HasValue && startDate.Value > today)
+            return string.Format(L["proj_timeline_start"], FormatProjectDate(startDate.Value));
+
+        if (!endDate.HasValue)
+            return L["proj_timeline_no_deadline"];
+
+        var daysLeft = (endDate.Value - today).Days;
+
+        if (daysLeft < 0)
+            return string.Format(L["proj_timeline_overdue"], FormatProjectDate(endDate.Value));
+
+        if (daysLeft == 0)
+            return L["proj_timeline_today"];
+
+        if (daysLeft == 1)
+            return L["proj_timeline_tomorrow"];
+
+        if (daysLeft <= 3)
+            return string.Format(L["proj_timeline_in_days"], daysLeft);
+
+        return string.Format(L["proj_timeline_until"], FormatProjectDate(endDate.Value));
+    }
+
+    private string GetTimelineSummary(Project project)
+    {
+        if (project.Status == ProjectStatus.Completed)
+            return L["proj_summary_completed"];
+
+        if (project.Status == ProjectStatus.Archived)
+            return L["proj_summary_archived"];
+
+        var today = KyrgyzstanTime.Today;
+        var startDate = project.StartDate?.Date;
+        var endDate = project.EndDate?.Date;
+
+        if (startDate.HasValue && startDate.Value > today)
+            return L["proj_summary_planned"];
+
+        if (!endDate.HasValue)
+            return L["proj_summary_no_deadline"];
+
+        var daysLeft = (endDate.Value - today).Days;
+
+        if (daysLeft < 0)
+            return L["proj_summary_overdue"];
+
+        if (daysLeft == 0)
+            return L["proj_summary_today"];
+
+        if (daysLeft <= 3)
+            return L["proj_summary_soon"];
+
+        return L["proj_summary_on_track"];
+    }
+}

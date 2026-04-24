@@ -1,0 +1,66 @@
+@inject IBoardService BoardService
+@inject LocalizationService L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
+            @L["board_create_title"]
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_title" Label="@L["board_title_label"]" Variant="Variant.Outlined"
+                          Required="true" RequiredError="@L["board_title_req"]"
+                          Placeholder="@L["board_title_hint"]" />
+
+            <MudTextField @bind-Value="_description" Label="@L["field_desc"]" Variant="Variant.Outlined"
+                          Lines="2" Placeholder="@L["board_desc_hint"]" />
+
+            <MudText Typo="Typo.caption" Class="mb-1">@L["board_color_label"]</MudText>
+            <div class="d-flex gap-2 flex-wrap">
+                @foreach (var color in _colors)
+                {
+                    <MudIconButton Icon="@(_selectedColor == color ? Icons.Material.Filled.Check : "")"
+                                   Size="Size.Medium"
+                                   Style="@($"background:{color}; color:white; width:40px; height:40px; border-radius:8px; border: {(_selectedColor == color ? "2px solid white" : "none")};")"
+                                   OnClick="() => _selectedColor = color" />
+                }
+            </div>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform:none;">@L["btn_cancel"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit"
+                   Disabled="@(string.IsNullOrWhiteSpace(_title))" Style="text-transform:none;">
+            @L["btn_create"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private string _title = "";
+    private string _description = "";
+    private string _selectedColor = "#1565C0";
+
+    private readonly string[] _colors =
+    [
+        "#1565C0", "#00695C", "#2E7D32", "#E65100", "#AD1457",
+        "#6A1B9A", "#4527A0", "#283593", "#00838F", "#37474F"
+    ];
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_title)) return;
+
+        var board = await BoardService.CreateBoardAsync(
+            new CreateBoardRequest(_title, _description, _selectedColor));
+
+        if (board is not null)
+            MudDialog.Close(DialogResult.Ok(board));
+    }
+}

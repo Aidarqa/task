@@ -1,0 +1,179 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using TrelloClone.Api.Data;
+using TrelloClone.Api.Services;
+using TrelloClone.Shared.Models;
+
+namespace TrelloClone.Api.Controllers;
+
+[ApiController, Route("api/[controller]"), Authorize]
+public class BookingsController(AppDbContext db, INotificationService notif) : ControllerBase
+{
+    private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private string CurrentUserName => User.Identity!.Name!;
+
+    [HttpGet("resources")]
+    public async Task<IActionResult> GetResources()
+        => Ok(await db.Resources.Where(r => r.IsActive).OrderBy(r => r.Name).ToListAsync());
+
+    [HttpPost("resources")]
+    public async Task<IActionResult> CreateResource(CreateResourceRequest req)
+    {
+        var resource = new Resource
+        {
+            Name = req.Name,
+            ResourceType = req.ResourceType,
+            Description = req.Description,
+            Capacity = req.Capacity,
+            Location = req.Location
+        };
+
+        db.Resources.Add(resource);
+        await db.SaveChangesAsync();
+        return Ok(resource);
+    }
+
+    [HttpPut("resources/{id:guid}")]
+    public async Task<IActionResult> UpdateResource(Guid id, UpdateResourceRequest req)
+    {
+        var resource = await db.Resources.FindAsync(id);
+        if (resource is null)
+            return NotFound();
+
+        resource.Name = req.Name;
+        resource.Description = req.Description;
+        resource.Capacity = req.Capacity;
+        resource.Location = req.Location;
+        resource.IsActive = req.IsActive;
+        await db.SaveChangesAsync();
+        return Ok(resource);
+    }
+
+    [HttpDelete("resources/{id:guid}")]
+    public async Task<IActionResult> DeleteResource(Guid id)
+    {
+        var resource = await db.Resources.FindAsync(id);
+        if (resource is null)
+            return NotFound();
+
+        db.Resources.Remove(resource);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetBookings([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] Guid? resourceId)
+    {
+        var q = db.Bookings.Include(b => b.Resource).AsQueryable();
+
+        if (resourceId.HasValue)
+            q = q.Where(b => b.ResourceId == resourceId.Value);
+
+        if (from.HasValue)
+            q = q.Where(b => b.EndTime >= from.Value);
+
+        if (to.HasValue)
+            q = q.Where(b => b.StartTime <= to.Value);
+
+        var list = await q.OrderBy(b => b.StartTime).ToListAsync();
+        return Ok(list.Select(ToDto));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateBookingRequest req)
+    {
+        var conflict = await db.Bookings.AnyAsync(b =>
+            b.ResourceId == req.ResourceId &&
+            b.Status != BookingStatus.Cancelled &&
+            b.StartTime < req.EndTime &&
+            b.EndTime > req.StartTime);
+
+        if (conflict)
+            return Conflict(new { error = "Кабинет уже забронирован на это время" });
+
+        var booking = new Booking
+        {
+            ResourceId = req.ResourceId,
+            BookedById = CurrentUserId,
+            BookedByName = CurrentUserName,
+            StartTime = req.StartTime,
+            EndTime = req.EndTime,
+            Title = req.Title,
+            EventId = req.EventId
+        };
+
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        await db.Entry(booking).Reference(b => b.Resource).LoadAsync();
+
+        var resourceName = booking.Resource?.Name ?? "кабинет";
+        await notif.SendAsync(
+            CurrentUserId,
+            "Бронирование подтверждено",
+            $"{resourceName} — {booking.StartTime:dd.MM.yyyy HH:mm}–{booking.EndTime:dd.MM.yyyy HH:mm}",
+            NotificationType.Booking,
+            "/bookings",
+            booking.Id.ToString());
+
+        return Ok(ToDto(booking));
+    }
+
+    [HttpPut("{id:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.Resource)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking is null)
+            return NotFound();
+
+        if (booking.BookedById != CurrentUserId)
+            return Forbid();
+
+        booking.Status = BookingStatus.Cancelled;
+        await db.SaveChangesAsync();
+
+        var resourceName = booking.Resource?.Name ?? "кабинет";
+        await notif.SendAsync(
+            CurrentUserId,
+            "Бронирование отменено",
+            $"{resourceName} — {booking.StartTime:dd.MM.yyyy HH:mm}–{booking.EndTime:dd.MM.yyyy HH:mm}",
+            NotificationType.Booking,
+            "/bookings",
+            booking.Id.ToString());
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null)
+            return NotFound();
+
+        if (booking.BookedById != CurrentUserId)
+            return Forbid();
+
+        db.Bookings.Remove(booking);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private static BookingDto ToDto(Booking b) => new(
+        b.Id,
+        b.ResourceId,
+        b.Resource?.Name ?? "",
+        b.Resource?.Location ?? "",
+        b.BookedById,
+        b.BookedByName,
+        b.StartTime,
+        b.EndTime,
+        b.Title,
+        b.Status,
+        b.CreatedAt);
+}

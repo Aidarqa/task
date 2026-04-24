@@ -1,0 +1,385 @@
+@inject IBoardService BoardService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject TrelloClone.Client.Services.LocalizationService L
+<MudDialog Style="background: var(--mud-palette-surface);">
+    <DialogContent>
+        <MudStack Spacing="4" Class="pa-2">
+            <!-- Header -->
+            <div class="d-flex align-center justify-space-between">
+                <div class="d-flex align-center gap-2" style="flex:1;">
+                    <MudIcon Icon="@Icons.Material.Filled.CreditCard"
+                             Style="color: var(--mud-palette-text-secondary);" />
+                    @if (_editingTitle)
+                    {
+                        <MudTextField @bind-Value="Card.Title" Variant="Variant.Text"
+                                      Style="font-size:1.2rem; font-weight:600;"
+                                      OnBlur="SaveTitle" AutoFocus="true"
+                                      OnKeyDown="TitleKeyDown" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.h6" @onclick="() => _editingTitle = true"
+                                 Style="cursor:pointer;">
+                            @Card.Title
+                        </MudText>
+                    }
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               OnClick="Close" />
+            </div>
+
+            <MudDivider />
+
+            <MudGrid>
+                <!-- Left Column (main content) -->
+                <MudItem xs="12" md="8">
+                    <!-- Labels -->
+                    @if (Card.Labels.Any())
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-2"
+                                 Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600; letter-spacing:0.05em;">
+                            @L["board_labels"]
+                        </MudText>
+                        <div class="d-flex gap-2 flex-wrap mb-4">
+                            @foreach (var label in Card.Labels)
+                            {
+                                <MudChip T="string" Size="Size.Small"
+                                         Style="@($"background:{label.Color}; color:white;")">
+                                    @label.Name
+                                </MudChip>
+                            }
+                        </div>
+                    }
+
+                    <!-- Description -->
+                    <MudText Typo="Typo.caption" Class="mb-2"
+                             Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600; letter-spacing:0.05em;">
+                        @L["board_description"]
+                    </MudText>
+                    <MudTextField @bind-Value="Card.Description" Variant="Variant.Outlined"
+                                  Lines="4" Placeholder="@L["board_description_placeholder"]"
+                                  Class="mb-4" />
+
+                    <!-- Checklist -->
+                    <MudText Typo="Typo.caption" Class="mb-2"
+                             Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600; letter-spacing:0.05em;">
+                        @L["board_checklist"]
+                    </MudText>
+                    @if (Card.Checklist.Any())
+                    {
+                        var total = Card.Checklist.Count;
+                        var done = Card.Checklist.Count(c => c.IsChecked);
+                        <MudProgressLinear Value="@(total > 0 ? (done * 100.0 / total) : 0)"
+                                           Color="@(done == total ? Color.Success : Color.Primary)"
+                                           Rounded="true" Size="Size.Small" Class="mb-2" />
+                    }
+                    @foreach (var item in Card.Checklist.OrderBy(c => c.Position))
+                    {
+                        <div class="d-flex align-center gap-2 mb-1">
+                            <MudCheckBox T="bool" Value="item.IsChecked"
+                                         ValueChanged="(v) => ToggleChecklist(item)"
+                                         Size="Size.Small" Color="Color.Success" />
+                            <MudText Typo="Typo.body2"
+                                     Style="@(item.IsChecked ? "text-decoration:line-through; opacity:0.6;" : "")">
+                                @item.Text
+                            </MudText>
+                        </div>
+                    }
+                    <div class="d-flex gap-2 mt-2 mb-4">
+                        <MudTextField @bind-Value="_newChecklistItem" Variant="Variant.Outlined"
+                                      Placeholder="@L["board_checklist_add_item"]" Dense="true"
+                                      OnKeyDown="ChecklistKeyDown" Style="flex:1;" />
+                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary"
+                                   OnClick="AddChecklistItem" Style="text-transform:none;"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newChecklistItem))">
+                            @L["btn_add"]
+                        </MudButton>
+                    </div>
+
+                    <!-- Comments -->
+                    <MudText Typo="Typo.caption" Class="mb-2"
+                             Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600; letter-spacing:0.05em;">
+                        @L["board_comments"]
+                    </MudText>
+                    <div class="d-flex gap-2 mb-3">
+                        <MudTextField @bind-Value="_newComment" Variant="Variant.Outlined"
+                                      Placeholder="@L["board_comment_placeholder"]" Dense="true"
+                                      Lines="2" Style="flex:1;" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="AddComment" Style="text-transform:none; align-self:flex-end;"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newComment))">
+                            @L["board_send"]
+                        </MudButton>
+                    </div>
+                    @foreach (var comment in Card.Comments.OrderByDescending(c => c.CreatedAt))
+                    {
+                        <MudPaper Elevation="0" Class="pa-3 mb-2"
+                                  Style="background: rgba(255,255,255,0.04); border-radius:8px;">
+                            <div class="d-flex justify-space-between align-center mb-1">
+                                <div class="d-flex align-center gap-2">
+                                    <MudAvatar Size="Size.Small" Color="Color.Primary">
+                                        @(comment.AuthorName.Length > 0 ? comment.AuthorName[0].ToString().ToUpper() : "?")
+                                    </MudAvatar>
+                                    <MudText Typo="Typo.body2" Style="font-weight:600;">
+                                        @comment.AuthorName
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">
+                                        @KyrgyzstanTime.FormatDateTime(comment.CreatedAt)
+                                    </MudText>
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               OnClick="() => DeleteComment(comment)"
+                                               Style="color: var(--mud-palette-text-secondary);" />
+                            </div>
+                            <MudText Typo="Typo.body2" Class="ml-10">@comment.Text</MudText>
+                        </MudPaper>
+                    }
+                </MudItem>
+
+                <!-- Right Sidebar -->
+                <MudItem xs="12" md="4">
+                    <MudStack Spacing="3">
+                        <!-- Priority -->
+                        <div>
+                            <MudText Typo="Typo.caption" Class="mb-1"
+                                     Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600;">
+                                @L["board_priority"]
+                            </MudText>
+                            <MudSelect T="CardPriority" @bind-Value="Card.Priority" Variant="Variant.Outlined"
+                                       Dense="true">
+                                <MudSelectItem Value="CardPriority.Low">
+                                    <div class="d-flex align-center gap-2">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent-blue);"></div>
+                                        @L["priority_low_f"]
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="CardPriority.Medium">
+                                    <div class="d-flex align-center gap-2">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></div>
+                                        @L["priority_medium_f"]
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="CardPriority.High">
+                                    <div class="d-flex align-center gap-2">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent-orange);"></div>
+                                        @L["priority_high_f"]
+                                    </div>
+                                </MudSelectItem>
+                                <MudSelectItem Value="CardPriority.Critical">
+                                    <div class="d-flex align-center gap-2">
+                                        <div style="width:8px;height:8px;border-radius:50%;background:var(--accent-red);"></div>
+                                        @L["priority_critical_f"]
+                                    </div>
+                                </MudSelectItem>
+                            </MudSelect>
+                        </div>
+
+                        <!-- Due Date -->
+                        <div>
+                            <MudText Typo="Typo.caption" Class="mb-1"
+                                     Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600;">
+                                @L["board_due_date"]
+                            </MudText>
+                            <MudDatePicker @bind-Date="_dueDate" Variant="Variant.Outlined"
+                                           Dense="true" Placeholder="@L["board_due_date_placeholder"]"
+                                           Clearable="true" />
+                        </div>
+
+                        <!-- Labels -->
+                        <div>
+                            <MudText Typo="Typo.caption" Class="mb-1"
+                                     Style="color: var(--mud-palette-text-secondary); text-transform:uppercase; font-weight:600;">
+                                @L["board_labels"]
+                            </MudText>
+                            @foreach (var label in AvailableLabels)
+                            {
+                                var isSelected = Card.Labels.Any(l => l.Id == label.Id);
+                                <MudChip T="string" Size="Size.Small" Class="mb-1"
+                                         Style="@($"background:{(isSelected ? label.Color : "transparent")}; color:{(isSelected ? "white" : "inherit")}; border: 1px solid {label.Color}; cursor:pointer;")"
+                                         OnClick="() => ToggleLabel(label)">
+                                    @label.Name
+                                </MudChip>
+                            }
+                            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add" OnClick="CreateLabel"
+                                       Style="text-transform:none;" FullWidth="true">
+                                @L["board_new_label"]
+                            </MudButton>
+                        </div>
+
+                        <MudDivider />
+
+                        <!-- Actions -->
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                                   OnClick="SaveCard" Style="text-transform:none; font-weight:600;">
+                            @L["board_save_changes"]
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true"
+                                   OnClick="DeleteCard" Style="text-transform:none;"
+                                   StartIcon="@Icons.Material.Filled.Delete">
+                            @L["board_delete_card"]
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudStack>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public CardItem Card { get; set; } = new();
+    [Parameter] public Guid BoardId { get; set; }
+    [Parameter] public List<CardLabel> AvailableLabels { get; set; } = [];
+
+    private string _newComment = "";
+    private string _newChecklistItem = "";
+    private bool _editingTitle;
+    private DateTime? _dueDate;
+
+    protected override void OnInitialized()
+    {
+        _dueDate = Card.DueDate;
+    }
+
+    private void Close() => MudDialog.Close();
+
+    private async Task SaveTitle()
+    {
+        _editingTitle = false;
+        await SaveCard();
+    }
+
+    private void TitleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _editingTitle = false;
+    }
+
+    private async Task SaveCard()
+    {
+        try
+        {
+            Card.DueDate = _dueDate;
+            await BoardService.UpdateCardAsync(Card.Id, new UpdateCardRequest(
+                Card.Title,
+                Card.Description,
+                Card.Priority,
+                _dueDate,
+                Card.AssigneeId,
+                Card.Labels.Select(l => l.Id).ToList()
+            ));
+            Snackbar.Add(L["board_card_saved"], Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_save_failed"]}: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCard()
+    {
+        try
+        {
+            await BoardService.DeleteCardAsync(Card.Id);
+            Snackbar.Add(L["board_card_deleted"], Severity.Info);
+            MudDialog.Close(DialogResult.Ok("deleted"));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_delete_failed"]}: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // ── Comments ────────────────────────────────────────
+    private async Task AddComment()
+    {
+        if (string.IsNullOrWhiteSpace(_newComment)) return;
+        try
+        {
+            var comment = await BoardService.AddCommentAsync(Card.Id, new CreateCommentRequest(_newComment));
+            if (comment is not null)
+            {
+                Card.Comments.Insert(0, comment);
+                _newComment = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_comment_failed"]}: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteComment(CardComment comment)
+    {
+        try
+        {
+            await BoardService.DeleteCommentAsync(Card.Id, comment.Id);
+            Card.Comments.Remove(comment);
+        }
+        catch { }
+    }
+
+    // ── Checklist ───────────────────────────────────────
+    private async Task AddChecklistItem()
+    {
+        if (string.IsNullOrWhiteSpace(_newChecklistItem)) return;
+        try
+        {
+            var item = await BoardService.AddChecklistItemAsync(Card.Id,
+                new CreateChecklistItemRequest(_newChecklistItem));
+            if (item is not null)
+            {
+                Card.Checklist.Add(item);
+                _newChecklistItem = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_generic_failed"]}: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void ChecklistKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = AddChecklistItem();
+    }
+
+    private async Task ToggleChecklist(ChecklistItem item)
+    {
+        try
+        {
+            await BoardService.ToggleChecklistItemAsync(Card.Id, item.Id);
+            item.IsChecked = !item.IsChecked;
+        }
+        catch { }
+    }
+
+    // ── Labels ──────────────────────────────────────────
+    private void ToggleLabel(CardLabel label)
+    {
+        var existing = Card.Labels.FirstOrDefault(l => l.Id == label.Id);
+        if (existing is not null)
+            Card.Labels.Remove(existing);
+        else
+            Card.Labels.Add(label);
+    }
+
+    private async Task CreateLabel()
+    {
+        var colors = new[] { "#579DFF", "#4BCE97", "#F5CD47", "#F87168", "#9F8FEF", "#FEA362" };
+        var color = colors[Random.Shared.Next(colors.Length)];
+
+        try
+        {
+            var label = await BoardService.CreateLabelAsync(
+                new CreateLabelRequest(L["board_new_label"], color, BoardId));
+            if (label is not null)
+                AvailableLabels.Add(label);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_generic_failed"]}: {ex.Message}", Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,138 @@
+@page "/dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits LocalizedBase
+@inject IBoardService BoardService
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@L["home_title"] - @L["app_name"]</PageTitle>
+
+<div class="home-page">
+    <MudPaper Class="home-hero" Elevation="0">
+        <div class="home-hero__content">
+            <div>
+                <MudText Typo="Typo.h4" Class="home-page-title">@L["home_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="home-page-subtitle">
+                    @L["home_subtitle"]
+                </MudText>
+            </div>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateBoard"
+                       Class="home-create-btn">
+                @L["home_new_board"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="home-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["home_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (_boards.Count == 0)
+    {
+        <MudPaper Class="home-empty-state" Elevation="0">
+            <div class="home-empty-icon-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.ViewKanban" Size="Size.Large" />
+            </div>
+
+            <MudText Typo="Typo.h6">@L["home_no_boards"]</MudText>
+            <MudText Typo="Typo.body2" Class="home-empty-subtitle">
+                @L["home_no_boards_hint"]
+            </MudText>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       OnClick="CreateBoard"
+                       Class="home-empty-btn">
+                @L["home_create_board"]
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="boards-grid-modern">
+            @foreach (var board in _boards)
+            {
+                <MudPaper Class="board-card-modern"
+                          Elevation="0"
+                          style="@($"--board-color: {board.BackgroundColor ?? "#1565C0"}")"
+                          @onclick="() => OpenBoard(board.Id)">
+                    <div class="board-card-modern__bg"></div>
+
+                    <div class="board-card-modern__content">
+                        <div class="board-card-modern__badge">
+                            @board.Title[0].ToString().ToUpper()
+                        </div>
+
+                        <div class="board-card-modern__body">
+                            <MudText Typo="Typo.h6" Class="board-card-modern__title">
+                                @board.Title
+                            </MudText>
+
+                            <MudText Typo="Typo.body2" Class="board-card-modern__desc">
+                                @(!string.IsNullOrWhiteSpace(board.Description)
+                                    ? (board.Description.Length > 80 ? board.Description[..80] + "..." : board.Description)
+                                    : L["home_board_no_desc"])
+                            </MudText>
+                        </div>
+
+                        <div class="board-card-modern__footer">
+                            <span class="board-card-modern__link">@L["home_open_board"]</span>
+                            <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" />
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Board> _boards = [];
+    private bool _loading = true;
+
+    private void OpenBoard(Guid id) => Nav.NavigateTo($"/board/{id}");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _boards = await BoardService.GetBoardsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["home_load_failed"]}: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateBoard()
+    {
+        var parameters = new DialogParameters<CreateBoardDialog>();
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<CreateBoardDialog>(L["home_new_board"], parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: Board newBoard })
+        {
+            _boards.Insert(0, newBoard);
+            Snackbar.Add(L["home_create_board"] + "!", Severity.Success);
+        }
+    }
+}

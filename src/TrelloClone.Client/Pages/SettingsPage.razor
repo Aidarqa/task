@@ -1,0 +1,176 @@
+@page "/settings"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject EmployeeService EmployeeSvc
+@inject ThemeService ThemeSvc
+@inject ISnackbar Snackbar
+@inject Blazored.LocalStorage.ILocalStorageService Storage
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>@L["settings_title"] - @L["app_name"]</PageTitle>
+
+<div class="settings-page-modern">
+    <MudPaper Class="settings-hero" Elevation="0">
+        <div class="settings-hero__content">
+            <div>
+                <MudText Typo="Typo.h4" Class="settings-page-title">@L["settings_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="settings-page-subtitle">
+                    @L["settings_subtitle"]
+                </MudText>
+            </div>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="settings-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["settings_loading"]</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudStack AlignItems="AlignItems.Center" Row Justify="Justify.Center">
+            <div class="settings-content-modern">
+                <MudPaper Class="settings-profile-card" Elevation="0">
+                    <div class="settings-profile-card__top">
+                        <div class="settings-avatar-modern" style="background:@_avatarColor">
+                            @_initials
+                        </div>
+
+                        <div class="settings-profile-info">
+                            <MudText Typo="Typo.h6" Class="settings-profile-name">
+                                @_userName
+                            </MudText>
+                            <MudText Typo="Typo.body2" Class="settings-profile-email">
+                                @_email
+                            </MudText>
+                        </div>
+                    </div>
+                </MudPaper>
+
+                <MudPaper Class="settings-section-card" Elevation="0">
+                    <div class="settings-section-header">
+                        <MudText Typo="Typo.h6">@L["settings_info"]</MudText>
+                        <MudText Typo="Typo.body2" Class="settings-section-subtitle">
+                            @L["settings_profile_info"]
+                        </MudText>
+                    </div>
+
+                    <div class="settings-form-grid">
+                        <MudTextField @bind-Value="_position"
+                                      Label="@L["settings_position"]"
+                                      Variant="Variant.Outlined"
+                                      Class="mb-2" />
+
+                        <MudTextField @bind-Value="_phone"
+                                      Label="@L["settings_phone"]"
+                                      Variant="Variant.Outlined"
+                                      Class="mb-2" />
+                    </div>
+
+                    <div class="settings-actions-row">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   OnClick="SaveProfileAsync"
+                                   Class="settings-action-btn">
+                            @L["btn_save"]
+                        </MudButton>
+                    </div>
+                </MudPaper>
+
+                <MudPaper Class="settings-section-card" Elevation="0">
+                    <div class="settings-section-header">
+                        <MudText Typo="Typo.h6">@L["settings_language"]</MudText>
+                        <MudText Typo="Typo.body2" Class="settings-section-subtitle">
+                            @L["settings_language_subtitle"]
+                        </MudText>
+                    </div>
+
+                    <MudButtonGroup Variant="Variant.Outlined" Class="settings-toggle-group">
+                        <MudButton Color="@(L.Lang == "ru" ? Color.Primary : Color.Default)"
+                                   OnClick="@(() => SetLang("ru"))">
+                            @L["settings_lang_ru"]
+                        </MudButton>
+                        <MudButton Color="@(L.Lang == "ky" ? Color.Primary : Color.Default)"
+                                   OnClick="@(() => SetLang("ky"))">
+                            @L["settings_lang_ky"]
+                        </MudButton>
+                    </MudButtonGroup>
+                </MudPaper>
+
+                <MudPaper Class="settings-section-card" Elevation="0">
+                    <div class="settings-section-header">
+                        <MudText Typo="Typo.h6">@L["settings_theme"]</MudText>
+                        <MudText Typo="Typo.body2" Class="settings-section-subtitle">
+                            @L["settings_theme_subtitle"]
+                        </MudText>
+                    </div>
+
+                    <MudButtonGroup Variant="Variant.Outlined" Class="settings-toggle-group">
+                        <MudButton Color="@(ThemeSvc.IsDark ? Color.Primary : Color.Default)"
+                                   StartIcon="@Icons.Material.Filled.DarkMode"
+                                   OnClick="@(() => SetTheme(true))">
+                            @L["settings_dark"]
+                        </MudButton>
+                        <MudButton Color="@(!ThemeSvc.IsDark ? Color.Primary : Color.Default)"
+                                   StartIcon="@Icons.Material.Filled.LightMode"
+                                   OnClick="@(() => SetTheme(false))">
+                            @L["settings_light"]
+                        </MudButton>
+                    </MudButtonGroup>
+                </MudPaper>
+            </div>
+        </MudStack>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string _userId = "";
+    private string _userName = "";
+    private string _email = "";
+    private string _initials = "";
+    private string _avatarColor = "#579DFF";
+    private string? _position;
+    private string? _phone;
+
+    protected override async Task OnInitializedAsync()
+    {
+        base.OnInitialized();
+        var state = await AuthState.GetAuthenticationStateAsync();
+        _userId = state.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "";
+        _userName = state.User.Identity?.Name ?? "";
+        _email = state.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? "";
+        _initials = _userName.Length > 0 ? _userName[0].ToString().ToUpper() : "?";
+        var colors = new[] { "#5c6bc0", "#26a69a", "#ef5350", "#ab47bc", "#42a5f5", "#66bb6a", "#ffa726" };
+        _avatarColor = colors[Math.Abs(_userName.GetHashCode()) % colors.Length];
+
+        _loading = true;
+        try
+        {
+            var profile = await EmployeeSvc.GetAsync(_userId);
+            if (profile is not null) { _position = profile.Position; _phone = profile.Phone; }
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        await EmployeeSvc.UpdateProfileAsync(_userId, new UpdateProfileRequest(_position, _phone, null));
+        Snackbar.Add(L["settings_saved"], Severity.Success);
+    }
+
+    private async Task SetLang(string lang)
+    {
+        L.Set(lang);
+        await Storage.SetItemAsStringAsync("lang", lang);
+    }
+
+    private async Task SetTheme(bool dark)
+    {
+        ThemeSvc.Set(dark);
+        await Storage.SetItemAsync("darkMode", dark);
+    }
+}

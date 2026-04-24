@@ -1,0 +1,333 @@
+@page "/notifications"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject NotificationClientService NotifSvc
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>@L["notif_title"] - @L["app_name"]</PageTitle>
+
+<div class="notifications-page-modern">
+    <MudPaper Class="notifications-hero" Elevation="0">
+        <div class="notifications-hero__content">
+            <div>
+                <MudText Typo="Typo.h4" Class="notifications-page-title">@L["notif_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="notifications-page-subtitle">@L["notif_subtitle"]</MudText>
+            </div>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.DoneAll"
+                       OnClick="MarkAllReadAsync"
+                       Disabled="@(!_notifications.Any(n => !n.IsRead))"
+                       Class="notifications-mark-all-btn">
+                @L["notif_mark_all_read"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="notifications-filter-panel" Elevation="0">
+        <div class="notifications-filter-row">
+            <MudTextField @bind-Value="SearchText"
+                          Placeholder="@L["notif_search"]"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          Class="notifications-search" />
+
+            <div class="notifications-switch-wrap">
+                <MudSwitch @bind-Value="UnreadOnly"
+                           Label="@L["notif_unread"]"
+                           Color="Color.Primary" />
+            </div>
+        </div>
+
+        <div class="notifications-chip-row">
+            @foreach (var (label, icon, value) in TypeFilters)
+            {
+                var active = _typeFilter == value;
+
+                <MudButton Size="Size.Small"
+                           Variant="@(active ? Variant.Filled : Variant.Outlined)"
+                           Color="@(active ? Color.Primary : Color.Default)"
+                           StartIcon="@icon"
+                           OnClick="@(() => SetTypeFilter(value))"
+                           Class="notifications-filter-chip">
+                    @label
+                </MudButton>
+            }
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="notifications-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["notif_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (FilteredNotifications.Count == 0)
+    {
+        <MudPaper Class="notifications-empty-state" Elevation="0">
+            <div class="notifications-empty-icon-wrap">
+                <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Size="Size.Large" />
+            </div>
+            <MudText Typo="Typo.h6">@L["notif_empty"]</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="notifications-list-shell">
+            <div class="notifications-list-scroll">
+                <div class="notifications-list-modern">
+                    @foreach (var notif in PagedNotifications)
+                    {
+                        var itemClass = $"notification-card-modern {(notif.IsRead ? "" : "notification-card-modern--unread")}";
+
+                        <MudPaper Class="@itemClass" Elevation="0">
+                            <div class="notification-card-modern__icon"
+                                 style="@($"color:{GetTypeColor(notif.NotificationType)}")">
+                                <MudIcon Icon="@GetTypeIcon(notif.NotificationType)" />
+                            </div>
+
+                            <div class="notification-card-modern__body"
+                                 @onclick="@(() => NavigateTo(notif))">
+                                <div class="notification-card-modern__topline">
+                                    <MudText Typo="Typo.subtitle1" Class="notification-card-modern__title">
+                                        @notif.Title
+                                    </MudText>
+
+                                    @if (!notif.IsRead)
+                                    {
+                                        <span class="notification-card-modern__badge">@L["notif_new"]</span>
+                                    }
+                                </div>
+
+                                @if (notif.Body is not null)
+                                {
+                                    <MudText Typo="Typo.body2" Class="notification-card-modern__text">
+                                        @notif.Body
+                                    </MudText>
+                                }
+
+                                <div class="notification-card-modern__meta">
+                                    <span class="notification-meta-pill">
+                                        <MudIcon Icon="@GetTypeIcon(notif.NotificationType)" Style="font-size:.82rem;" />
+                                        @GetTypeName(notif.NotificationType)
+                                    </span>
+
+                                    <span class="notification-meta-pill">
+                                        @KyrgyzstanTime.FormatDateTime(notif.CreatedAt)
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="notification-card-modern__actions">
+                                @if (!notif.IsRead)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Done"
+                                                   Size="Size.Small"
+                                                   title="@L["notif_mark_read"]"
+                                                   OnClick="@(() => MarkReadAsync(notif.Id))" />
+                                }
+
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               title="@L["notif_delete"]"
+                                               OnClick="@(() => DeleteAsync(notif.Id))" />
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+            </div>
+
+            <div class="notifications-pagination-bar">
+                <MudText Typo="Typo.caption">
+                    @string.Format(L["notif_pagination"], NotificationPaginationStart, NotificationPaginationEnd, FilteredNotifications.Count)
+                </MudText>
+                <MudPagination Count="@NotificationTotalPages"
+                               Selected="@_notificationPage"
+                               SelectedChanged="OnNotificationPageChanged"
+                               Size="Size.Small"
+                               Variant="Variant.Outlined"
+                               BoundaryCount="1"
+                               MiddleCount="1" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<NotificationDto> _notifications = [];
+    private bool _loading = true;
+    private string _search = "";
+    private bool _unreadOnly;
+    private NotificationType? _typeFilter;
+    private int _notificationPage = 1;
+    private const int NotificationPageSize = 8;
+
+    private (string Label, string Icon, NotificationType? Value)[] TypeFilters =>
+    [
+        (L["notif_all"],          Icons.Material.Filled.Notifications, null),
+        (L["notif_type_task"],    Icons.Material.Filled.Assignment, NotificationType.Task),
+        (L["notif_type_event"],   Icons.Material.Filled.Event, NotificationType.Event),
+        (L["notif_type_booking"], Icons.Material.Filled.MeetingRoom, NotificationType.Booking),
+        (L["notif_type_project"], Icons.Material.Filled.FolderOpen, NotificationType.System),
+    ];
+
+    private string SearchText
+    {
+        get => _search;
+        set
+        {
+            if (_search == value)
+                return;
+
+            _search = value;
+            _notificationPage = 1;
+        }
+    }
+
+    private bool UnreadOnly
+    {
+        get => _unreadOnly;
+        set
+        {
+            if (_unreadOnly == value)
+                return;
+
+            _unreadOnly = value;
+            _notificationPage = 1;
+        }
+    }
+
+    private List<NotificationDto> FilteredNotifications => _notifications
+        .Where(n => n.NotificationType != NotificationType.Chat)
+        .Where(n => _typeFilter == null || n.NotificationType == _typeFilter)
+        .Where(n => !_unreadOnly || !n.IsRead)
+        .Where(n => string.IsNullOrEmpty(_search)
+                 || n.Title.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                 || (n.Body?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))
+        .ToList();
+
+    private IEnumerable<NotificationDto> PagedNotifications => FilteredNotifications
+        .Skip((_notificationPage - 1) * NotificationPageSize)
+        .Take(NotificationPageSize);
+
+    private int NotificationTotalPages => Math.Max(1, (int)Math.Ceiling(FilteredNotifications.Count / (double)NotificationPageSize));
+    private int NotificationPaginationStart => FilteredNotifications.Count == 0 ? 0 : ((_notificationPage - 1) * NotificationPageSize) + 1;
+    private int NotificationPaginationEnd => Math.Min(_notificationPage * NotificationPageSize, FilteredNotifications.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        NotifSvc.OnNotification += OnNewNotification;
+        _notifications = await NotifSvc.GetAllAsync();
+        NormalizeNotificationPagination();
+        _loading = false;
+    }
+
+    private void OnNewNotification(NotificationDto notif)
+    {
+        if (notif.NotificationType == NotificationType.Chat) return;
+        _notifications.Insert(0, notif);
+        NormalizeNotificationPagination();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task MarkReadAsync(Guid id)
+    {
+        await NotifSvc.MarkReadAsync(id);
+        var idx = _notifications.FindIndex(n => n.Id == id);
+        if (idx >= 0)
+            _notifications[idx] = _notifications[idx] with { IsRead = true };
+
+        NormalizeNotificationPagination();
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        await NotifSvc.MarkAllReadAsync();
+        _notifications = _notifications.Select(n => n with { IsRead = true }).ToList();
+        NormalizeNotificationPagination();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        await NotifSvc.DeleteAsync(id);
+        _notifications.RemoveAll(n => n.Id == id);
+        NormalizeNotificationPagination();
+    }
+
+    private void NavigateTo(NotificationDto notif)
+    {
+        if (!notif.IsRead)
+            _ = NotifSvc.MarkReadAsync(notif.Id);
+
+        if (notif.Link is not null)
+            Nav.NavigateTo(notif.Link);
+    }
+
+    private void SetTypeFilter(NotificationType? value)
+    {
+        if (_typeFilter == value)
+            return;
+
+        _typeFilter = value;
+        _notificationPage = 1;
+    }
+
+    private void NormalizeNotificationPagination()
+    {
+        if (_notificationPage < 1)
+            _notificationPage = 1;
+
+        if (_notificationPage > NotificationTotalPages)
+            _notificationPage = NotificationTotalPages;
+    }
+
+    private Task OnNotificationPageChanged(int page)
+    {
+        _notificationPage = page;
+        return Task.CompletedTask;
+    }
+
+    private string GetTypeName(NotificationType t) => t switch
+    {
+        NotificationType.Task => L["notif_type_task"],
+        NotificationType.Event => L["notif_type_event"],
+        NotificationType.Booking => L["notif_type_booking"],
+        NotificationType.Chat => L["notif_type_chat"],
+        NotificationType.System => L["notif_type_project"],
+        _ => L["notif_type_system"],
+    };
+
+    private static string GetTypeIcon(NotificationType t) => t switch
+    {
+        NotificationType.Task => Icons.Material.Filled.Assignment,
+        NotificationType.Event => Icons.Material.Filled.Event,
+        NotificationType.Booking => Icons.Material.Filled.MeetingRoom,
+        NotificationType.Chat => Icons.Material.Filled.Chat,
+        NotificationType.System => Icons.Material.Filled.FolderOpen,
+        _ => Icons.Material.Filled.Info,
+    };
+
+    private static string GetTypeColor(NotificationType t) => t switch
+    {
+        NotificationType.Task => "#F59E0B",
+        NotificationType.Event => "#3B82F6",
+        NotificationType.Booking => "#10B981",
+        NotificationType.Chat => "#8B5CF6",
+        NotificationType.System => "#6366F1",
+        _ => "#6B7280",
+    };
+
+    public new void Dispose()
+    {
+        NotifSvc.OnNotification -= OnNewNotification;
+        base.Dispose();
+    }
+}

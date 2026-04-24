@@ -1,0 +1,554 @@
+@page "/bookings"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject BookingService BookingSvc
+@inject AuthenticationStateProvider AuthState
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>@L["book_title"] - @L["app_name"]</PageTitle>
+
+<div class="booking-page">
+    <MudPaper Class="booking-toolbar" Elevation="0">
+        <div class="booking-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="booking-page-title">@L["book_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="booking-page-subtitle">
+                    @L["book_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="booking-toolbar__right">
+            <MudToggleGroup T="string"
+                            @bind-Value="_activeTab"
+                            Size="Size.Small"
+                            Class="booking-toggle">
+                <MudToggleItem Value="@("bookings")">@L["book_bookings"]</MudToggleItem>
+                <MudToggleItem Value="@("resources")">@L["book_resources"]</MudToggleItem>
+            </MudToggleGroup>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@(_activeTab == "bookings" ? OpenBookingDialog : OpenResourceDialog)"
+                       Class="booking-toolbar-btn">
+                @(_activeTab == "bookings" ? L["book_new"] : L["book_add_resource"])
+            </MudButton>
+
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="booking-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["book_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (_activeTab == "bookings")
+    {
+        <MudPaper Class="booking-filter-panel" Elevation="0">
+            <div class="booking-filter-grid">
+                <MudSelect T="Guid?"
+                           @bind-Value="_filterResourceId"
+                           Label="@L["book_resource"]"
+                           Margin="Margin.Dense"
+                           Dense="true"
+                           Variant="Variant.Outlined"
+                           Clearable="true">
+                    @foreach (var resource in _resources)
+                    {
+                        <MudSelectItem Value="@((Guid?)resource.Id)">@resource.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudDatePicker @bind-Date="_filterFrom"
+                               Margin="Margin.Dense"
+                               Label="@L["book_from"]"
+                               Variant="Variant.Outlined" />
+
+                <MudDatePicker @bind-Date="_filterTo"
+                               Margin="Margin.Dense"
+                               Label="@L["book_to"]"
+                               Variant="Variant.Outlined" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="ApplyBookingFiltersAsync"
+                           Class="booking-filter-btn">
+                    @L["book_find"]
+                </MudButton>
+            </div>
+        </MudPaper>
+
+        @if (_bookings.Count == 0)
+        {
+            <MudPaper Class="booking-empty-state" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Large" Class="booking-empty-icon" />
+                <MudText Typo="Typo.h6">@L["book_no_bookings"]</MudText>
+                <MudText Typo="Typo.body2" Class="booking-empty-subtitle">
+                    @L["book_empty_hint"]
+                </MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <div class="booking-list-shell">
+                <div class="booking-list-scroll">
+                    <div class="booking-list">
+                        @foreach (var booking in PagedBookings)
+                        {
+                            <MudPaper Class="@($"booking-card {(booking.Status == BookingStatus.Cancelled ? "booking-card--cancelled" : "")}")" Elevation="0">
+                                <div class="booking-card__content">
+                                    <div class="booking-card__left">
+                                        <div class="booking-icon-wrap">
+                                            <MudIcon Icon="@Icons.Material.Filled.MeetingRoom" Class="booking-icon" />
+                                        </div>
+
+                                        <div class="booking-main-info">
+                                            <div class="booking-top-line">
+                                                <MudText Typo="Typo.subtitle1" Class="booking-resource">
+                                                    @booking.ResourceName
+                                                </MudText>
+
+                                                <MudChip T="string"
+                                                         Size="Size.Small"
+                                                         Color="@(booking.Status == BookingStatus.Confirmed ? Color.Success : Color.Default)"
+                                                         Variant="Variant.Outlined">
+                                                    @(booking.Status == BookingStatus.Confirmed ? L["book_active"] : L["book_cancelled_status"])
+                                                </MudChip>
+                                            </div>
+
+                                            @if (!string.IsNullOrWhiteSpace(booking.Title))
+                                            {
+                                                <MudText Typo="Typo.body1" Class="booking-title">
+                                                    @booking.Title
+                                                </MudText>
+                                            }
+
+                                            <div class="booking-meta-list">
+                                                <div class="booking-meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
+                                                    <span>@KyrgyzstanTime.FormatDateTimeRange(booking.StartTime, booking.EndTime)</span>
+                                                </div>
+
+                                                <div class="booking-meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                                    <span>@booking.BookedByName</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="booking-card__right">
+                                        @if (CanCancelBooking(booking))
+                                        {
+                                            <MudButton Variant="Variant.Outlined"
+                                                       Color="Color.Error"
+                                                       StartIcon="@Icons.Material.Filled.Cancel"
+                                                       OnClick="@(() => CancelBooking(booking.Id))">
+                                                @L["book_cancel"]
+                                            </MudButton>
+                                        }
+
+                                        @if (CanDeleteBooking(booking))
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                           Color="Color.Error"
+                                                           OnClick="@(() => ConfirmDeleteBookingAsync(booking.Id, booking.ResourceName, booking.StartTime))" />
+                                        }
+                                    </div>
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                </div>
+
+                @if (_bookings.Count > 0)
+                {
+                    <div class="booking-pagination-bar">
+                        <MudText Typo="Typo.caption">
+                            @string.Format(L["book_pagination"], BookingPaginationStart, BookingPaginationEnd, _bookings.Count)
+                        </MudText>
+                        <MudPagination Count="@BookingTotalPages"
+                                       Selected="@_bookingPage"
+                                       SelectedChanged="OnBookingPageChanged"
+                                       Size="Size.Small"
+                                       Variant="Variant.Outlined"
+                                       BoundaryCount="1"
+                                       MiddleCount="1" />
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        @if (_resources.Count == 0)
+        {
+            <MudPaper Class="booking-empty-state" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" Class="booking-empty-icon" />
+                <MudText Typo="Typo.h6">@L["book_no_resources"]</MudText>
+                <MudText Typo="Typo.body2" Class="booking-empty-subtitle">
+                    @L["book_resources_hint"]
+                </MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <div class="resource-grid">
+                @foreach (var resource in _resources)
+                {
+                    <MudPaper Class="@($"resource-card {(!resource.IsActive ? "resource-card--inactive" : "")}")" Elevation="0">
+                        <div class="resource-card-header">
+                            <div class="resource-icon-wrap">
+                                <MudIcon Icon="@GetResourceIcon(resource.ResourceType)" Class="resource-type-icon" />
+                            </div>
+
+                            <div class="resource-header-main">
+                                <MudText Typo="Typo.subtitle1" Class="resource-name">@resource.Name</MudText>
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Color="@(resource.IsActive ? Color.Success : Color.Default)"
+                                         Variant="Variant.Outlined">
+                                    @(resource.IsActive ? L["emp_active"] : L["emp_inactive"])
+                                </MudChip>
+                            </div>
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteResource(resource.Id))" />
+                        </div>
+
+                        <div class="resource-body">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="resource-type-chip">
+                                @GetResourceTypeLabel(resource.ResourceType)
+                            </MudChip>
+
+                            @if (!string.IsNullOrWhiteSpace(resource.Location))
+                            {
+                                <div class="resource-meta">
+                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" />
+                                    <span>@resource.Location</span>
+                                </div>
+                            }
+
+                            @if (resource.Capacity.HasValue)
+                            {
+                                <div class="resource-meta">
+                                    <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" />
+                                    <span>@resource.Capacity @L["book_capacity"]</span>
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+    }
+</div>
+
+<MudDialog @bind-Visible="_bookingOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["book_new"]</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="booking-dialog-body">
+            <MudSelect T="Guid"
+                       @bind-Value="_bookResourceId"
+                       Label="@L["book_resource"]"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       Class="mb-3">
+                @foreach (var resource in _resources.Where(x => x.IsActive))
+                {
+                    <MudSelectItem Value="@resource.Id">@resource.Name @(resource.Location is not null ? $"({resource.Location})" : "")</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField @bind-Value="_bookTitle"
+                          Label="@L["book_purpose"]"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_bookStartDate"
+                                   Label="@L["book_start_date"]"
+                                   Variant="Variant.Outlined"
+                                   Class="mb-2" />
+                    <MudTimePicker @bind-Time="_bookStartTime"
+                                   Label="@L["book_start_time"]"
+                                   Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_bookEndDate"
+                                   Label="@L["book_end_date"]"
+                                   Variant="Variant.Outlined"
+                                   Class="mb-2" />
+                    <MudTimePicker @bind-Time="_bookEndTime"
+                                   Label="@L["book_end_time"]"
+                                   Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _bookingOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="BookAsync">
+            @L["book_new"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_resourceOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["book_add_resource"]</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="booking-dialog-body">
+            <MudTextField @bind-Value="_resName"
+                          Label="@L["field_name"]"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          Class="mb-3" />
+
+            <MudSelect T="ResourceType"
+                       @bind-Value="_resType"
+                       Label="@L["book_resources"]"
+                       Variant="Variant.Outlined"
+                       Class="mb-3">
+                <MudSelectItem Value="ResourceType.Room">@L["res_type_room"]</MudSelectItem>
+                <MudSelectItem Value="ResourceType.Equipment">@L["res_type_equip"]</MudSelectItem>
+                <MudSelectItem Value="ResourceType.Vehicle">@L["res_type_vehicle"]</MudSelectItem>
+                <MudSelectItem Value="ResourceType.Other">@L["res_type_other"]</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField @bind-Value="_resLocation"
+                          Label="@L["book_location"]"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudNumericField @bind-Value="_resCapacity"
+                             Label="@L["book_capacity"]"
+                             Variant="Variant.Outlined"
+                             Class="mb-3" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _resourceOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateResourceAsync">
+            @L["btn_create"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Resource> _resources = [];
+    private List<BookingDto> _bookings = [];
+    private bool _loading = true;
+    private string _activeTab = "bookings";
+    private string _currentUserId = "";
+    private Guid? _filterResourceId;
+    private DateTime? _filterFrom = KyrgyzstanTime.Today;
+    private DateTime? _filterTo = KyrgyzstanTime.Today.AddDays(7);
+    private bool _bookingOpen;
+    private bool _resourceOpen;
+    private int _bookingPage = 1;
+    private const int BookingPageSize = 8;
+
+    private Guid _bookResourceId;
+    private string? _bookTitle;
+    private DateTime? _bookStartDate = KyrgyzstanTime.Today;
+    private TimeSpan? _bookStartTime = KyrgyzstanTime.Now.AddHours(1).TimeOfDay;
+    private DateTime? _bookEndDate = KyrgyzstanTime.Today;
+    private TimeSpan? _bookEndTime = KyrgyzstanTime.Now.AddHours(2).TimeOfDay;
+
+    private string _resName = "";
+    private ResourceType _resType = ResourceType.Room;
+    private string? _resLocation;
+    private int? _resCapacity;
+
+    private IEnumerable<BookingDto> PagedBookings => _bookings
+        .Skip((_bookingPage - 1) * BookingPageSize)
+        .Take(BookingPageSize);
+
+    private int BookingTotalPages => Math.Max(1, (int)Math.Ceiling(_bookings.Count / (double)BookingPageSize));
+    private int BookingPaginationStart => _bookings.Count == 0 ? 0 : ((_bookingPage - 1) * BookingPageSize) + 1;
+    private int BookingPaginationEnd => Math.Min(_bookingPage * BookingPageSize, _bookings.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        _resources = await BookingSvc.GetResourcesAsync();
+        await LoadBookingsAsync();
+    }
+
+    private async Task LoadBookingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = _filterFrom?.Date;
+            var to = _filterTo?.Date.AddDays(1).AddTicks(-1);
+
+            _bookings = await BookingSvc.GetBookingsAsync(
+                from, to, _filterResourceId);
+            NormalizeBookingPagination();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ApplyBookingFiltersAsync()
+    {
+        _bookingPage = 1;
+        await LoadBookingsAsync();
+    }
+
+    private void OpenBookingDialog()
+    {
+        if (_resources.Any(resource => resource.IsActive))
+            _bookResourceId = _resources.First(resource => resource.IsActive).Id;
+
+        ResetBookingDraft();
+        _bookingOpen = true;
+    }
+
+    private void OpenResourceDialog()
+    {
+        _resName = "";
+        _resourceOpen = true;
+    }
+
+    private async Task BookAsync()
+    {
+        try
+        {
+            var start = (_bookStartDate ?? KyrgyzstanTime.Today) + (_bookStartTime ?? TimeSpan.Zero);
+            var end = (_bookEndDate ?? KyrgyzstanTime.Today) + (_bookEndTime ?? TimeSpan.FromHours(1));
+            await BookingSvc.CreateBookingAsync(new CreateBookingRequest(
+                _bookResourceId, start, end, _bookTitle));
+            _bookingOpen = false;
+            Snackbar.Add(L["book_success"], Severity.Success);
+            await LoadBookingsAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CancelBooking(Guid id)
+    {
+        await BookingSvc.CancelBookingAsync(id);
+        var booking = _bookings.FirstOrDefault(x => x.Id == id);
+        if (booking is not null)
+            _bookings[_bookings.IndexOf(booking)] = booking with { Status = BookingStatus.Cancelled };
+
+        Snackbar.Add(L["book_cancelled_msg"], Severity.Info);
+    }
+
+    private async Task ConfirmDeleteBookingAsync(Guid id, string resourceName, DateTime startTime)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["book_delete_title"],
+            string.Format(L["book_delete_confirm"], resourceName, KyrgyzstanTime.FormatDateTime(startTime)),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed == true)
+            await DeleteBookingAsync(id);
+    }
+
+    private async Task DeleteBookingAsync(Guid id)
+    {
+        await BookingSvc.DeleteBookingAsync(id);
+        _bookings.RemoveAll(x => x.Id == id);
+        NormalizeBookingPagination();
+        Snackbar.Add(L["book_deleted"], Severity.Info);
+    }
+
+    private async Task CreateResourceAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_resName))
+            return;
+
+        var resource = await BookingSvc.CreateResourceAsync(new CreateResourceRequest(
+            _resName, _resType, null, _resCapacity, _resLocation));
+
+        if (resource is not null)
+            _resources.Add(resource);
+
+        _resourceOpen = false;
+        Snackbar.Add(L["book_resource_added"], Severity.Success);
+    }
+
+    private async Task DeleteResource(Guid id)
+    {
+        await BookingSvc.DeleteResourceAsync(id);
+        _resources.RemoveAll(resource => resource.Id == id);
+    }
+
+    private void ResetBookingDraft()
+    {
+        var start = KyrgyzstanTime.Now.AddHours(1);
+        var end = KyrgyzstanTime.Now.AddHours(2);
+
+        _bookTitle = null;
+        _bookStartDate = start.Date;
+        _bookStartTime = start.TimeOfDay;
+        _bookEndDate = end.Date;
+        _bookEndTime = end.TimeOfDay;
+    }
+
+    private string GetResourceTypeLabel(ResourceType type) => type switch
+    {
+        ResourceType.Room => L["res_type_room"],
+        ResourceType.Equipment => L["res_type_equip"],
+        ResourceType.Vehicle => L["res_type_vehicle"],
+        _ => L["res_type_other"]
+    };
+
+    private bool CanCancelBooking(BookingDto booking)
+        => booking.Status == BookingStatus.Confirmed && booking.BookedById == _currentUserId;
+
+    private bool CanDeleteBooking(BookingDto booking)
+        => booking.BookedById == _currentUserId;
+
+    private void NormalizeBookingPagination()
+    {
+        if (_bookingPage < 1)
+            _bookingPage = 1;
+
+        if (_bookingPage > BookingTotalPages)
+            _bookingPage = BookingTotalPages;
+    }
+
+    private Task OnBookingPageChanged(int page)
+    {
+        _bookingPage = page;
+        return Task.CompletedTask;
+    }
+
+    private string GetResourceIcon(ResourceType type) => type switch
+    {
+        ResourceType.Room => Icons.Material.Filled.MeetingRoom,
+        ResourceType.Equipment => Icons.Material.Filled.Computer,
+        ResourceType.Vehicle => Icons.Material.Filled.DirectionsCar,
+        _ => Icons.Material.Filled.Inventory
+    };
+}

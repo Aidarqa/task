@@ -1,0 +1,227 @@
+@page "/todo"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject TodoService TodoSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>@L["todo_title"] - @L["app_name"]</PageTitle>
+
+<div class="todo-page">
+    <MudPaper Class="todo-toolbar" Elevation="0">
+        <div class="todo-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="todo-page-title">@L["todo_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="todo-page-subtitle">
+                    @L["todo_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="todo-toolbar__right">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddList"
+                       Class="todo-create-btn">
+                @L["todo_new_list"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="todo-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["todo_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (_lists.Count == 0)
+    {
+        <MudPaper Class="todo-empty-state" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Class="todo-empty-icon" />
+            <MudText Typo="Typo.h6">@L["todo_no_lists"]</MudText>
+            <MudText Typo="Typo.body2" Class="todo-empty-subtitle">
+                @L["todo_empty_subtitle"]
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="todo-board-shell">
+            <div class="todo-grid-modern">
+            @foreach (var list in _lists)
+            {
+                <MudPaper Class="todo-list-card-modern" Elevation="0">
+                    <div class="todo-list-header-modern">
+                        @if (_editingListId == list.Id)
+                        {
+                            <MudTextField @bind-Value="_editListTitle"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          @onblur="@(() => SaveListTitle(list))"
+                                          @onkeydown="@(async e => { if (e.Key == "Enter") await SaveListTitle(list); })"
+                                          Style="flex:1" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.subtitle1"
+                                     Class="todo-list-title-modern"
+                                     @ondblclick="@(() => StartEditList(list))">
+                                @list.Title
+                            </MudText>
+                        }
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteList(list.Id))" />
+                    </div>
+
+                    <div class="todo-list-body-modern">
+                        <div class="todo-items-modern">
+                            @foreach (var item in list.Items)
+                            {
+                                var itemClass = $"todo-item-modern {(item.IsCompleted ? "todo-item-modern--done" : "")}";
+
+                                <div class="@itemClass">
+                                    <div class="todo-item-main">
+                                        <MudCheckBox T="bool"
+                                                     Value="item.IsCompleted"
+                                                     ValueChanged="@(async v => await ToggleItem(item))"
+                                                     Color="Color.Primary" />
+
+                                        <span class="todo-item-text-modern">@item.Text</span>
+                                    </div>
+
+                                    <div class="todo-item-actions">
+                                        @if (item.DueDate.HasValue)
+                                        {
+                                            var dueClass = $"todo-due-modern {(item.DueDate < KyrgyzstanTime.Now ? "todo-due-modern--overdue" : "")}";
+
+                                            <span class="@dueClass">
+                                                @KyrgyzstanTime.FormatDateTime(item.DueDate.Value)
+                                            </span>
+                                        }
+
+                                        <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => DeleteItem(list, item.Id))" />
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="todo-list-footer-modern">
+                        <div class="todo-add-row-modern">
+                            <MudTextField @bind-Value="_newItemTexts[list.Id]"
+                                          Placeholder="@L["todo_add_task"]"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Class="todo-add-input"
+                                          @onkeydown="@(async e => { if (e.Key == "Enter") await AddItem(list); })" />
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       OnClick="@(() => AddItem(list))"
+                                       Class="todo-add-btn">
+                                <MudIcon Icon="@Icons.Material.Filled.Add" />
+                            </MudButton>
+                        </div>
+
+                        @if (list.Items.Count > 0)
+                        {
+                            var done = list.Items.Count(i => i.IsCompleted);
+
+                            <div class="todo-progress-block">
+                                <MudProgressLinear Value="@((double)done / list.Items.Count * 100)"
+                                                   Color="Color.Success"
+                                                   Rounded="true"
+                                                   Size="Size.Small" />
+                                <MudText Typo="Typo.caption" Class="todo-progress-text">
+                                    @done / @list.Items.Count @L["todo_completed"]
+                                </MudText>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<TodoList> _lists = [];
+    private Dictionary<Guid, string> _newItemTexts = [];
+    private bool _loading = true;
+    private Guid? _editingListId;
+    private string _editListTitle = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _lists = await TodoSvc.GetListsAsync();
+            _newItemTexts = _lists.ToDictionary(l => l.Id, _ => "");
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task AddList()
+    {
+        var list = await TodoSvc.CreateListAsync(L["todo_new_list_name"]);
+        if (list is not null)
+        {
+            _lists.Add(list);
+            _newItemTexts[list.Id] = "";
+            _editingListId = list.Id;
+            _editListTitle = list.Title;
+        }
+    }
+
+    private void StartEditList(TodoList list) { _editingListId = list.Id; _editListTitle = list.Title; }
+
+    private async Task SaveListTitle(TodoList list)
+    {
+        if (!string.IsNullOrWhiteSpace(_editListTitle) && _editListTitle != list.Title)
+        {
+            await TodoSvc.UpdateListAsync(list.Id, _editListTitle);
+            list.Title = _editListTitle;
+        }
+        _editingListId = null;
+    }
+
+    private async Task DeleteList(Guid id)
+    {
+        await TodoSvc.DeleteListAsync(id);
+        _lists.RemoveAll(l => l.Id == id);
+        _newItemTexts.Remove(id);
+    }
+
+    private async Task AddItem(TodoList list)
+    {
+        if (!_newItemTexts.TryGetValue(list.Id, out var text) || string.IsNullOrWhiteSpace(text)) return;
+        var item = await TodoSvc.AddItemAsync(list.Id, text);
+        if (item is not null) list.Items.Add(item);
+        _newItemTexts[list.Id] = "";
+    }
+
+    private async Task ToggleItem(TodoItem item)
+    {
+        await TodoSvc.ToggleItemAsync(item.Id);
+        item.IsCompleted = !item.IsCompleted;
+    }
+
+    private async Task DeleteItem(TodoList list, Guid itemId)
+    {
+        await TodoSvc.DeleteItemAsync(itemId);
+        list.Items.RemoveAll(i => i.Id == itemId);
+    }
+}

@@ -1,0 +1,466 @@
+@page "/board/{BoardId:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits LocalizedBase
+@inject IBoardService BoardService
+@inject BoardHubService HubService
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
+
+@if (_loading)
+{
+    <div class="board-page-loading">
+        <MudPaper Class="board-loading-card" Elevation="0">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["board_loading"]</MudText>
+        </MudPaper>
+    </div>
+}
+else if (_board is null)
+{
+    <div class="board-page-shell">
+        <MudPaper Class="board-not-found-card" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.WarningAmber" Size="Size.Large" Class="board-not-found-icon" />
+            <MudText Typo="Typo.h6">@L["board_not_found"]</MudText>
+        </MudPaper>
+    </div>
+}
+else
+{
+    <div class="board-page-shell">
+        <div class="board-hero"
+             style="@($"--board-color: {_board.BackgroundColor ?? "#1565C0"}")">
+            <div class="board-hero__overlay"></div>
+
+            <div class="board-hero__content">
+                <div class="board-hero__left">
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                                   Color="Color.Inherit"
+                                   OnClick="@(() => Nav.NavigateTo("/"))"
+                                   Size="Size.Small"
+                                   Class="board-back-btn" />
+
+                    <div class="board-hero__text">
+                        <MudText Typo="Typo.h4" Class="board-hero__title">
+                            @_board.Title
+                        </MudText>
+                        <MudText Typo="Typo.body2" Class="board-hero__subtitle">
+                            @(_board.Columns.Sum(c => c.Cards.Count)) @L["board_cards"] · @_board.Columns.Count @L["board_add_column"].ToLower()
+                        </MudText>
+                    </div>
+                </div>
+
+                <div class="board-hero__actions">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Inherit"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddColumn"
+                               Class="board-hero__add-btn">
+                        @L["board_add_column"]
+                    </MudButton>
+                </div>
+            </div>
+        </div>
+
+        <div class="board-board-shell">
+            <div class="kanban-board-modern">
+                @foreach (var column in _board.Columns.OrderBy(c => c.Position))
+                {
+                    var isDropTarget = _dragOverColumnId == column.Id && _draggingCard is not null;
+                    var sortedCards = column.Cards.OrderBy(c => c.Position).ToList();
+                    var columnClass = $"kanban-column-modern {(isDropTarget ? "kanban-column-modern--drag-over" : "")}";
+
+                    <MudPaper Class="@columnClass" Elevation="0">
+                        <div class="kanban-column-modern__header">
+                            <div class="kanban-column-modern__header-left">
+                                <MudText Typo="Typo.subtitle1" Class="kanban-column-modern__title">
+                                    @column.Title
+                                </MudText>
+
+                                <span class="kanban-column-modern__count">
+                                    @column.Cards.Count
+                                </span>
+                            </div>
+
+                            <div class="kanban-column-modern__header-actions">
+                                <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                               Size="Size.Small"
+                                               OnClick="() => AddCard(column)"
+                                               Class="kanban-column-modern__icon-btn" />
+
+                                <MudMenu Icon="@Icons.Material.Filled.MoreVert"
+                                         Size="Size.Small"
+                                         Dense="true"
+                                         AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight">
+                                    <MudMenuItem OnClick="() => RenameColumn(column)"
+                                                 Icon="@Icons.Material.Filled.Edit">
+                                        @L["board_rename"]
+                                    </MudMenuItem>
+                                    <MudMenuItem OnClick="() => DeleteColumn(column)"
+                                                 Icon="@Icons.Material.Filled.Delete"
+                                                 IconColor="Color.Error">
+                                        @L["btn_delete"]
+                                    </MudMenuItem>
+                                </MudMenu>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column-modern__cards"
+                             @ondragover:preventDefault
+                             @ondragover="@(() => OnColumnDragOver(column.Id))"
+                             @ondrop="() => HandleDrop(column)">
+
+                            @foreach (var card in sortedCards)
+                            {
+                                var isDraggingThis = _draggingCard?.Id == card.Id;
+                                var cardClass = $"kanban-card-modern priority-{card.Priority.ToString().ToLower()} {(isDraggingThis ? "kanban-card-modern--dragging" : "")}";
+
+                                @if (isDropTarget && _insertBeforeCardId == card.Id)
+                                {
+                                    <div class="card-drop-indicator-modern"></div>
+                                }
+
+                                <div class="@cardClass"
+                                     draggable="true"
+                                     @ondragstart="() => HandleDragStart(card, column)"
+                                     @ondragend="HandleDragEnd"
+                                     @ondragover:preventDefault
+                                     @ondragover:stopPropagation
+                                     @ondragover="@(() => OnCardDragOver(column.Id, card.Id))"
+                                     @onclick="() => OpenCardDetail(card)">
+
+                                    @if (card.Labels.Any())
+                                    {
+                                        <div class="kanban-card-modern__labels">
+                                            @foreach (var label in card.Labels)
+                                            {
+                                                <div class="kanban-card-modern__label-chip"
+                                                     style="background:@label.Color;"
+                                                     title="@label.Name"></div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="kanban-card-modern__title">
+                                        @card.Title
+                                    </div>
+
+                                    @{
+                                        var hasMeta = card.DueDate.HasValue || card.Comments.Any()
+                                                   || card.Checklist.Any() || !string.IsNullOrEmpty(card.Description);
+                                    }
+
+                                    @if (hasMeta)
+                                    {
+                                        <div class="kanban-card-modern__meta">
+                                            @if (card.DueDate.HasValue)
+                                            {
+                                                var isOverdue = card.DueDate.Value < KyrgyzstanTime.Now;
+                                                var dueClass = $"kanban-card-modern__meta-item {(isOverdue ? "kanban-card-modern__meta-item--overdue" : "")}";
+
+                                                <span class="@dueClass">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Style="font-size:0.8rem;" />
+                                                    @KyrgyzstanTime.FormatDateTime(card.DueDate.Value)
+                                                </span>
+                                            }
+
+                                            @if (!string.IsNullOrEmpty(card.Description))
+                                            {
+                                                <span class="kanban-card-modern__meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Subject" Style="font-size:0.8rem;" />
+                                                </span>
+                                            }
+
+                                            @if (card.Comments.Any())
+                                            {
+                                                <span class="kanban-card-modern__meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Style="font-size:0.8rem;" />
+                                                    @card.Comments.Count
+                                                </span>
+                                            }
+
+                                            @if (card.Checklist.Any())
+                                            {
+                                                var done = card.Checklist.Count(c => c.IsChecked);
+                                                var allDone = done == card.Checklist.Count;
+                                                var checklistClass = $"kanban-card-modern__meta-item {(allDone ? "kanban-card-modern__meta-item--complete" : "")}";
+
+                                                <span class="@checklistClass">
+                                                    <MudIcon Icon="@Icons.Material.Filled.CheckBox" Style="font-size:0.8rem;" />
+                                                    @done/@card.Checklist.Count
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @if (isDropTarget && _insertBeforeCardId == null)
+                            {
+                                <div class="card-drop-indicator-modern"></div>
+                            }
+
+                            @if (!sortedCards.Any() && !isDropTarget)
+                            {
+                                <div class="kanban-column-modern__empty">
+                                    @L["board_no_cards"]
+                                </div>
+                            }
+                        </div>
+
+                        <div class="kanban-column-modern__footer">
+                            <button class="quick-add-btn-modern" @onclick="() => AddCard(column)">
+                                <MudIcon Icon="@Icons.Material.Filled.Add" Style="font-size:1rem;" />
+                                @L["board_add_card"]
+                            </button>
+                        </div>
+                    </MudPaper>
+                }
+
+                <button class="add-column-btn-modern" @onclick="AddColumn">
+                    <MudIcon Icon="@Icons.Material.Filled.Add" Style="font-size:1.1rem;" />
+                    @L["board_add_column"]
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid BoardId { get; set; }
+
+    private Board? _board;
+    private bool _loading = true;
+
+    // Drag & Drop
+    private CardItem? _draggingCard;
+    private BoardColumn? _sourceColumn;
+    private Guid? _dragOverColumnId;
+    private Guid? _insertBeforeCardId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBoard();
+        await ConnectHub();
+    }
+
+    private async Task LoadBoard()
+    {
+        _loading = true;
+        try
+        {
+            _board = await BoardService.GetBoardAsync(BoardId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_load_failed"]}: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ConnectHub()
+    {
+        try
+        {
+            HubService.OnBoardUpdated += async _ => await InvokeAsync(async () =>
+            {
+                await LoadBoard();
+                StateHasChanged();
+            });
+            HubService.OnCardMoved += async _ => await InvokeAsync(async () =>
+            {
+                await LoadBoard();
+                StateHasChanged();
+            });
+            await HubService.ConnectAsync(BoardId);
+        }
+        catch { /* SignalR — optional */ }
+    }
+
+    private void HandleDragStart(CardItem card, BoardColumn column)
+    {
+        _draggingCard = card;
+        _sourceColumn = column;
+    }
+
+    private void OnColumnDragOver(Guid columnId)
+    {
+        if (_dragOverColumnId != columnId)
+        {
+            _dragOverColumnId = columnId;
+            _insertBeforeCardId = null;
+        }
+    }
+
+    private void OnCardDragOver(Guid columnId, Guid cardId)
+    {
+        _dragOverColumnId = columnId;
+        _insertBeforeCardId = (_draggingCard?.Id == cardId) ? null : cardId;
+    }
+
+    private void HandleDragEnd() => ClearDragState();
+
+    private async Task HandleDrop(BoardColumn targetColumn)
+    {
+        if (_draggingCard is null || _board is null)
+        {
+            ClearDragState();
+            return;
+        }
+
+        var card = _draggingCard;
+        var sourceCol = _sourceColumn;
+        var insertId = _insertBeforeCardId;
+        ClearDragState();
+
+        var targetCards = targetColumn.Cards
+            .Where(c => c.Id != card.Id)
+            .OrderBy(c => c.Position)
+            .ToList();
+
+        int newPosition;
+        if (insertId is null)
+        {
+            newPosition = targetCards.Count;
+        }
+        else
+        {
+            var before = targetCards.FirstOrDefault(c => c.Id == insertId);
+            newPosition = before is not null ? targetCards.IndexOf(before) : targetCards.Count;
+        }
+
+        if (sourceCol?.Id == targetColumn.Id)
+        {
+            var current = targetColumn.Cards.OrderBy(c => c.Position).ToList();
+            var idx = current.FindIndex(c => c.Id == card.Id);
+            if (idx == newPosition || idx + 1 == newPosition)
+                return;
+        }
+
+        try
+        {
+            sourceCol?.Cards.Remove(card);
+            card.ColumnId = targetColumn.Id;
+
+            var reordered = targetColumn.Cards.OrderBy(c => c.Position).ToList();
+            reordered.Insert(Math.Clamp(newPosition, 0, reordered.Count), card);
+            for (var i = 0; i < reordered.Count; i++)
+                reordered[i].Position = i;
+
+            if (sourceCol?.Id != targetColumn.Id)
+                targetColumn.Cards.Add(card);
+
+            StateHasChanged();
+
+            await BoardService.MoveCardAsync(card.Id, new MoveCardRequest(targetColumn.Id, newPosition));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{L["board_move_failed"]}: {ex.Message}", Severity.Error);
+            await LoadBoard();
+        }
+    }
+
+    private void ClearDragState()
+    {
+        _draggingCard = null;
+        _sourceColumn = null;
+        _dragOverColumnId = null;
+        _insertBeforeCardId = null;
+    }
+
+    private async Task AddColumn()
+    {
+        var p = new DialogParameters<SimpleInputDialog>
+        {
+            { x => x.Title,       L["board_new_column"]  },
+            { x => x.Label,       L["board_column_name"] },
+            { x => x.Placeholder, L["board_column_hint"] }
+        };
+        var result = await (await DialogService.ShowAsync<SimpleInputDialog>("", p)).Result;
+        if (result is { Canceled: false, Data: string name } && !string.IsNullOrWhiteSpace(name))
+        {
+            var col = await BoardService.CreateColumnAsync(new CreateColumnRequest(name, BoardId));
+            if (col is not null) { _board?.Columns.Add(col); StateHasChanged(); }
+        }
+    }
+
+    private async Task RenameColumn(BoardColumn column)
+    {
+        var p = new DialogParameters<SimpleInputDialog>
+        {
+            { x => x.Title,        L["board_rename_col"]  },
+            { x => x.Label,        L["board_column_name"] },
+            { x => x.InitialValue, column.Title           }
+        };
+        var result = await (await DialogService.ShowAsync<SimpleInputDialog>("", p)).Result;
+        if (result is { Canceled: false, Data: string name } && !string.IsNullOrWhiteSpace(name))
+        {
+            await BoardService.UpdateColumnAsync(column.Id, new UpdateColumnRequest(name));
+            column.Title = name;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteColumn(BoardColumn column)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["board_delete_col"],
+            string.Format(L["board_delete_col_message"], column.Title),
+            yesText: L["btn_delete"], cancelText: L["btn_cancel"]);
+
+        if (confirmed == true)
+        {
+            await BoardService.DeleteColumnAsync(column.Id);
+            _board?.Columns.Remove(column);
+            StateHasChanged();
+            Snackbar.Add(L["board_col_deleted"], Severity.Info);
+        }
+    }
+
+    private async Task AddCard(BoardColumn column)
+    {
+        var p = new DialogParameters<SimpleInputDialog>
+        {
+            { x => x.Title,       L["board_new_card"]  },
+            { x => x.Label,       L["board_card_name"] },
+            { x => x.Placeholder, L["board_card_hint"] }
+        };
+        var result = await (await DialogService.ShowAsync<SimpleInputDialog>("", p)).Result;
+        if (result is { Canceled: false, Data: string title } && !string.IsNullOrWhiteSpace(title))
+        {
+            var card = await BoardService.CreateCardAsync(new CreateCardRequest(title, null, column.Id));
+            if (card is not null) { column.Cards.Add(card); StateHasChanged(); }
+        }
+    }
+
+    private async Task OpenCardDetail(CardItem card)
+    {
+        var labels = await BoardService.GetBoardLabelsAsync(BoardId);
+        var p = new DialogParameters<CardDetailDialog>
+        {
+            { x => x.Card,            card    },
+            { x => x.BoardId,         BoardId },
+            { x => x.AvailableLabels, labels  }
+        };
+        var opts = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            NoHeader = true
+        };
+        await DialogService.ShowAsync<CardDetailDialog>("", p, opts);
+        await LoadBoard();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await HubService.DisconnectAsync(BoardId); } catch { }
+    }
+}

@@ -1,0 +1,1130 @@
+@page "/tasks"
+@page "/tasks/{TaskId:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject WorkTaskService TaskSvc
+@inject EmployeeService EmployeeSvc
+@inject ProjectService ProjectSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
+@inject FileDownloadService FileDownloader
+
+<PageTitle>@L["tasks_title"] - @L["app_name"]</PageTitle>
+
+<MudStack Spacing="3" Class="tasks-shell">
+    <MudPaper Class="tasks-toolbar" Elevation="0">
+        <div class="tasks-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="tasks-page-title">@L["tasks_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="tasks-page-subtitle">
+                    @L["tasks_subtitle"]
+                </MudText>
+
+                @if (_currentProject is not null)
+                {
+                    <div class="tasks-project-context">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="Color.Info"
+                                 Variant="Variant.Outlined"
+                                 Class="task-project-chip">
+                            @($"{L["tasks_project"]}: {_currentProject.Name}")
+                        </MudChip>
+
+                        <MudButton Variant="Variant.Text"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Clear"
+                                   OnClick="ClearProjectFilter">
+                            @L["tasks_all_projects"]
+                        </MudButton>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="tasks-toolbar__right">
+            <MudToggleGroup T="string" @bind-Value="_view" Size="Size.Small" Class="tasks-view-toggle">
+                <MudToggleItem Value="@("list")">
+                    <MudIcon Icon="@Icons.Material.Filled.ViewList" />
+                </MudToggleItem>
+                <MudToggleItem Value="@("board")">
+                    <MudIcon Icon="@Icons.Material.Filled.ViewColumn" />
+                </MudToggleItem>
+            </MudToggleGroup>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog">
+                @L["tasks_new"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="tasks-filter-panel" Elevation="0">
+        <MudStack AlignItems="AlignItems.Center" Row Justify="Justify.FlexEnd">
+                <MudSelect T="Guid?"
+                           @bind-Value="_filterProjectId"
+                           Label="@L["tasks_filter_project"]"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           Clearable="true">
+                    @foreach (var project in _projects.OrderBy(p => p.Name))
+                    {
+                        <MudSelectItem T="Guid?" Value="@((Guid?)project.Id)">@project.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudSelect T="string"
+                           @bind-Value="_filterStatus"
+                           Label="@L["tasks_filter_status"]"
+                           Dense="true"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           Clearable="true">
+                    <MudSelectItem Value="@("New")">@L["status_new"]</MudSelectItem>
+                    <MudSelectItem Value="@("InProgress")">@L["status_inprogress"]</MudSelectItem>
+                    <MudSelectItem Value="@("Review")">@L["status_review"]</MudSelectItem>
+                    <MudSelectItem Value="@("Done")">@L["status_done"]</MudSelectItem>
+                </MudSelect>
+
+                <MudCheckBox @bind-Value="_myOnly" Label="@L["tasks_my_assigned_only"]" Color="Color.Primary" />
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFiltersAsync">
+                    @L["btn_apply"]
+                </MudButton>
+        </MudStack>
+    </MudPaper>
+
+    @if (_currentProject is not null)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+            @string.Format(L["tasks_project_context"], _currentProject.Name)
+        </MudAlert>
+    }
+
+    <MudGrid Class="tasks-content-grid">
+        <MudItem xs="12" lg="7" Class="tasks-column">
+            <div class="tasks-list-shell">
+                <div class="tasks-scroll-panel tasks-list-scroll">
+                    @if (_loading)
+                    {
+                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center">
+                            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                            <MudText Typo="Typo.body1" Class="mt-3">@L["tasks_loading"]</MudText>
+                        </MudPaper>
+                    }
+                    else if (_tasks.Count == 0)
+                    {
+                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" />
+                            <MudText Typo="Typo.h6" Class="mt-3">@L["tasks_empty_filtered"]</MudText>
+                            @if (_currentProject is not null)
+                            {
+                                <MudText Typo="Typo.body2" Class="mt-1">@string.Format(L["tasks_empty_project"], _currentProject.Name)</MudText>
+                            }
+                        </MudPaper>
+                    }
+                    else if (_view == "list")
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var task in PagedTasks)
+                            {
+                                <MudPaper Class="pa-4 task-list-card" Elevation="0">
+                                    <MudStack Spacing="2">
+                                        <div class="d-flex justify-space-between align-start">
+                                            <div class="d-flex flex-column" style="gap:.5rem;">
+                                                <div class="d-flex" style="gap:.5rem; flex-wrap:wrap;">
+                                                    <MudChip T="string" Size="Size.Small" Class="@GetStatusClass(task.Status)">
+                                                        @GetStatusLabel(task.Status)
+                                                    </MudChip>
+                                                    <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(task.Priority)">
+                                                        @GetPriorityLabel(task.Priority)
+                                                    </MudChip>
+                                                    @if (TryGetProjectName(task.ProjectId) is { } projectName)
+                                                    {
+                                                        <MudChip T="string"
+                                                                 Size="Size.Small"
+                                                                 Color="Color.Info"
+                                                                 Variant="Variant.Outlined"
+                                                                 Class="task-project-chip">
+                                                            @($"{L["tasks_project"]}: {projectName}")
+                                                        </MudChip>
+                                                    }
+                                                </div>
+
+                                                <MudText Typo="Typo.h6" Style="cursor:pointer" @onclick="@(() => SelectTask(task.Id))">
+                                                    @task.Title
+                                                </MudText>
+                                            </div>
+
+                                            @if (task.DueDate.HasValue)
+                                            {
+                                                <MudChip T="string"
+                                                         Size="Size.Small"
+                                                         Color="@(task.DueDate < KyrgyzstanTime.Now && task.Status != WorkTaskStatus.Done ? Color.Error : Color.Default)"
+                                                         Variant="Variant.Outlined">
+                                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateTime(task.DueDate.Value))
+                                                </MudChip>
+                                            }
+                                        </div>
+
+                                        <div class="d-flex justify-space-between align-center" style="gap:1rem; flex-wrap:wrap;">
+                                            <MudText Typo="Typo.body2">
+                                                @L["tasks_author"]: @task.AuthorName
+                                                @if (!string.IsNullOrWhiteSpace(task.AssigneeName))
+                                                {
+                                                    <span> | @L["tasks_assignee"]: @task.AssigneeName</span>
+                                                }
+                                            </MudText>
+
+                                            <div class="d-flex" style="gap:.5rem; flex-wrap:wrap;">
+                                                <MudButton Size="Size.Small"
+                                                           Variant="Variant.Outlined"
+                                                           StartIcon="@Icons.Material.Filled.OpenInNew"
+                                                           OnClick="@(() => SelectTask(task.Id))">
+                                                    @L["tasks_open"]
+                                                </MudButton>
+
+                                                @if (CanTakeInWork(task))
+                                                {
+                                                    <MudButton Size="Size.Small"
+                                                               Variant="Variant.Filled"
+                                                               Color="Color.Primary"
+                                                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                               OnClick="@(() => AcceptTaskAsync(task))">
+                                                        @L["tasks_take"]
+                                                    </MudButton>
+                                                }
+
+                                                @if (CanMoveToTodo(task))
+                                                {
+                                                    <MudButton Size="Size.Small"
+                                                               Variant="Variant.Outlined"
+                                                               StartIcon="@Icons.Material.Filled.AddTask"
+                                                               OnClick="@(() => MoveTaskToTodoAsync(task))">
+                                                        @L["tasks_move_todo"]
+                                                    </MudButton>
+                                                }
+
+                                                @if (CanDelete(task))
+                                                {
+                                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                                   Size="Size.Small"
+                                                                   Color="Color.Error"
+                                                                   OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                }
+                                            </div>
+                                        </div>
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudGrid>
+                            @foreach (var status in Enum.GetValues<WorkTaskStatus>().Where(s => s != WorkTaskStatus.Cancelled))
+                            {
+                                var columnTasks = PagedTasks.Where(t => t.Status == status).ToList();
+
+                                <MudItem xs="12" md="6" xl="3">
+                                    <MudPaper Class="pa-3 h-100" Elevation="0">
+                                        <MudStack Spacing="2">
+                                            <div class="d-flex justify-space-between align-center">
+                                                <MudText Typo="Typo.h6">@GetStatusLabel(status)</MudText>
+                                                <MudChip T="string" Size="Size.Small">@columnTasks.Count</MudChip>
+                                            </div>
+
+                                            @foreach (var task in columnTasks)
+                                            {
+                                                <MudPaper Class="pa-3" Elevation="1">
+                                                    <MudStack Spacing="1">
+                                                        <div class="d-flex justify-space-between align-start" style="gap:.5rem;">
+                                                            <MudText Typo="Typo.subtitle1" Style="cursor:pointer; flex:1" @onclick="@(() => SelectTask(task.Id))">
+                                                                @task.Title
+                                                            </MudText>
+
+                                                            @if (CanDelete(task))
+                                                            {
+                                                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                                               Size="Size.Small"
+                                                                               Color="Color.Error"
+                                                                               OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                            }
+                                                        </div>
+
+                                                        <MudText Typo="Typo.caption">
+                                                            @(string.IsNullOrWhiteSpace(task.AssigneeName) ? L["tasks_no_assignee"] : task.AssigneeName)
+                                                        </MudText>
+
+                                                        @if (TryGetProjectName(task.ProjectId) is { } projectName)
+                                                        {
+                                                            <MudText Typo="Typo.caption" Class="task-project-caption">
+                                                                @($"{L["tasks_project"]}: {projectName}")
+                                                            </MudText>
+                                                        }
+
+                                                        <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(task.Priority)">
+                                                            @GetPriorityLabel(task.Priority)
+                                                        </MudChip>
+                                                    </MudStack>
+                                                </MudPaper>
+                                            }
+                                        </MudStack>
+                                    </MudPaper>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    }
+                </div>
+
+                @if (!_loading && _tasks.Count > 0 && TotalPages > 1)
+                {
+                    <div class="tasks-pagination-bar tasks-pagination-bar--sticky">
+                        <MudText Typo="Typo.caption">
+                            @string.Format(L["tasks_pagination"], PaginationStart, PaginationEnd, _tasks.Count)
+                        </MudText>
+                        <MudPagination Count="@TotalPages"
+                                       Selected="@_currentPage"
+                                       SelectedChanged="OnPageChanged"
+                                       Size="Size.Small"
+                                       Variant="Variant.Outlined"
+                                       BoundaryCount="1"
+                                       MiddleCount="1" />
+                    </div>
+                }
+            </div>
+        </MudItem>
+
+        <MudItem xs="12" lg="5" Class="tasks-column">
+            <MudPaper Class="pa-4 tasks-detail-panel" Elevation="0">
+                <div class="tasks-scroll-panel">
+                @if (TaskId is null)
+                {
+                    <MudStack Spacing="2" Class="align-center justify-center" Style="min-height: 24rem;">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" />
+                        <MudText Typo="Typo.h6">@L["tasks_select"]</MudText>
+                        <MudText Typo="Typo.body2">@L["tasks_select_hint"]</MudText>
+                    </MudStack>
+                }
+                else if (_loadingTask)
+                {
+                    <MudStack Spacing="2" Class="align-center justify-center" Style="min-height: 24rem;">
+                        <MudProgressCircular Indeterminate="true" />
+                        <MudText Typo="Typo.body2">@L["tasks_loading_detail"]</MudText>
+                    </MudStack>
+                }
+                else if (_selectedTask is null)
+                {
+                    <MudStack Spacing="2" Class="align-center justify-center" Style="min-height: 24rem;">
+                        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" />
+                        <MudText Typo="Typo.h6">@L["tasks_not_found"]</MudText>
+                    </MudStack>
+                }
+                else
+                {
+                    <MudStack Spacing="3">
+                        <div class="d-flex justify-space-between align-start" style="gap:1rem;">
+                            <div>
+                                <MudText Typo="Typo.h5">@_selectedTask.Title</MudText>
+                                <MudText Typo="Typo.body2" Class="mt-1">
+                                    @L["tasks_author"]: @_selectedTask.AuthorName
+                                    @if (!string.IsNullOrWhiteSpace(_selectedTask.AssigneeName))
+                                    {
+                                        <span> | @L["tasks_assignee"]: @_selectedTask.AssigneeName</span>
+                                    }
+                                </MudText>
+                                @if (TryGetProjectName(_selectedTask.ProjectId) is { } selectedProjectName)
+                                {
+                                    <MudText Typo="Typo.caption" Class="task-project-caption">
+                                        @($"{L["tasks_project"]}: {selectedProjectName}")
+                                    </MudText>
+                                }
+                            </div>
+
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseTask" />
+                        </div>
+
+                        <div class="d-flex" style="gap:.5rem; flex-wrap:wrap;">
+                            <MudChip T="string" Size="Size.Small" Class="@GetStatusClass(_selectedTask.Status)">
+                                @GetStatusLabel(_selectedTask.Status)
+                            </MudChip>
+                            <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(_selectedTask.Priority)">
+                                @GetPriorityLabel(_selectedTask.Priority)
+                            </MudChip>
+                            @if (TryGetProjectName(_selectedTask.ProjectId) is { } selectedProjectChipName)
+                            {
+                                <MudChip T="string"
+                                         Size="Size.Small"
+                                         Color="Color.Info"
+                                         Variant="Variant.Outlined"
+                                         Class="task-project-chip">
+                                    @($"{L["tasks_project"]}: {selectedProjectChipName}")
+                                </MudChip>
+                            }
+                            @if (_selectedTask.DueDate.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateTime(_selectedTask.DueDate.Value))
+                                </MudChip>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_selectedTask.Description))
+                        {
+                            <MudPaper Class="pa-3" Outlined="true">
+                                <MudText Typo="Typo.subtitle2">@L["tasks_description"]</MudText>
+                                <MudText Typo="Typo.body2">@_selectedTask.Description</MudText>
+                            </MudPaper>
+                        }
+
+                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.subtitle2">@L["tasks_actions"]</MudText>
+
+                                <div class="d-flex" style="gap:.75rem; flex-wrap:wrap;">
+                                    @if (CanTakeInWork(_selectedTask))
+                                    {
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                                                   OnClick="@(() => AcceptTaskAsync(_selectedTask))">
+                                            @L["tasks_take"]
+                                        </MudButton>
+                                    }
+
+                                    @if (CanMoveToTodo(_selectedTask))
+                                    {
+                                        <MudButton Variant="Variant.Outlined"
+                                                   StartIcon="@Icons.Material.Filled.AddTask"
+                                                   OnClick="@(() => MoveTaskToTodoAsync(_selectedTask))">
+                                            @L["tasks_move_todo_full"]
+                                        </MudButton>
+                                    }
+
+                                    @if (CanDelete(_selectedTask))
+                                    {
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Color="Color.Error"
+                                                   StartIcon="@Icons.Material.Filled.DeleteOutline"
+                                                   OnClick="@(() => ConfirmDeleteTaskAsync(_selectedTask.Id, _selectedTask.Title))">
+                                            @L["tasks_delete_title"]
+                                        </MudButton>
+                                    }
+                                </div>
+
+                                @if (CanUpdateStatus(_selectedTask))
+                                {
+                                    <div class="d-flex align-center" style="gap:.75rem; flex-wrap:wrap;">
+                                        <MudSelect T="WorkTaskStatus"
+                                                   @bind-Value="_selectedStatus"
+                                                   Label="@L["tasks_status"]"
+                                                   Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense"
+                                                   Style="min-width: 14rem;">
+                                            <MudSelectItem Value="WorkTaskStatus.New">@L["status_new"]</MudSelectItem>
+                                            <MudSelectItem Value="WorkTaskStatus.InProgress">@L["status_inprogress"]</MudSelectItem>
+                                            <MudSelectItem Value="WorkTaskStatus.Review">@L["status_review"]</MudSelectItem>
+                                            <MudSelectItem Value="WorkTaskStatus.Done">@L["status_done"]</MudSelectItem>
+                                            <MudSelectItem Value="WorkTaskStatus.Cancelled">@L["status_cancelled"]</MudSelectItem>
+                                        </MudSelect>
+
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.Save"
+                                                   OnClick="UpdateSelectedTaskStatusAsync">
+                                            @L["tasks_update_status"]
+                                        </MudButton>
+                                    </div>
+                                }
+                            </MudStack>
+                        </MudPaper>
+
+                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.subtitle2">@L["tasks_files"]</MudText>
+                                <div class="task-files-toolbar">
+                                        <MudCheckBox @bind-Value="_pinUploads" Label="@L["tasks_pin_uploads"]" Color="Color.Primary" />
+
+                                    <div class="task-upload-bar">
+                                        <InputFile id="task-file-upload"
+                                                   class="file-picker-input"
+                                                   accept="@FileUploadRules.AcceptAttribute"
+                                                   OnChange="UploadTaskFilesAsync"
+                                                   multiple />
+                                        <label for="task-file-upload"
+                                               class="file-picker-trigger file-picker-trigger--task-icon"
+                                               title="@L["tasks_add_attachments"]">
+                                            <MudIcon Icon="@Icons.Material.Filled.AttachFile" />
+                                            <span>@L["tasks_add_files"]</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                @if (_selectedTask.Attachments.Count == 0)
+                                {
+                                    <MudText Typo="Typo.body2">@L["tasks_no_files"]</MudText>
+                                }
+                                else
+                                {
+                                    @foreach (var attachment in OrderedAttachments)
+                                    {
+                                        <MudPaper Class="task-attachment-card" Outlined="true">
+                                            <div class="task-attachment-row">
+                                                <button type="button"
+                                                        @onclick="@(() => DownloadAttachmentAsync(attachment))"
+                                                        class="task-attachment-main">
+                                                    <span class="task-attachment-icon @GetAttachmentAccentClass(attachment)">
+                                                        <MudIcon Icon="@GetAttachmentIcon(attachment)" />
+                                                    </span>
+
+                                                    <span class="task-attachment-copy">
+                                                        <span class="task-attachment-name">@attachment.FileName</span>
+                                                        <span class="task-attachment-meta">
+                                                            @attachment.UploadedByName, @KyrgyzstanTime.FormatDateTime(attachment.UploadedAt), @FormatBytes(attachment.Size)
+                                                        </span>
+                                                    </span>
+                                                </button>
+
+                                                <div class="task-attachment-actions">
+                                                    @if (attachment.IsPinned)
+                                                    {
+                                                        <MudChip T="string"
+                                                                 Size="Size.Small"
+                                                                 Color="Color.Warning"
+                                                                 Variant="Variant.Filled"
+                                                                 Class="task-attachment-pin-chip">
+                                                            @L["tasks_pinned"]
+                                                        </MudChip>
+                                                    }
+
+                                                    <div class="task-attachment-action-buttons">
+                                                        <MudIconButton Icon="@(attachment.IsPinned ? Icons.Material.Filled.PushPin : Icons.Material.Outlined.PushPin)"
+                                                                       Size="Size.Small"
+                                                                       Class="task-attachment-icon-btn"
+                                                                       OnClick="@(() => ToggleAttachmentPinAsync(attachment.Id))" />
+                                                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                                       Size="Size.Small"
+                                                                       Color="Color.Error"
+                                                                       Class="task-attachment-icon-btn"
+                                                                       OnClick="@(() => DeleteAttachmentAsync(attachment.Id))" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </MudPaper>
+                                    }
+                                }
+                            </MudStack>
+                        </MudPaper>
+
+                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.subtitle2">@L["tasks_checklist"]</MudText>
+
+                                @foreach (var item in _selectedTask.Checklist.OrderBy(i => i.Position))
+                                {
+                                    <div class="d-flex justify-space-between align-center">
+                                        <MudCheckBox T="bool" Color="Color.Primary"
+                                                     Value="item.IsChecked"
+                                                     ValueChanged="@(async _ => await ToggleChecklistAsync(item.Id))" />
+                                        <MudText Typo="Typo.body2" Style="flex:1">@item.Text</MudText>
+                                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => DeleteChecklistAsync(item.Id))" />
+                                    </div>
+                                }
+
+                                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudTextField @bind-Value="_newChecklistText"
+                                                  Placeholder="@L["tasks_new_checklist_item"]"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  Style="flex:1" />
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddChecklistAsync">@L["btn_add"]</MudButton>
+                                    </MudStack>
+                            </MudStack>
+                        </MudPaper>
+
+                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.subtitle2">@L["tasks_comments"]</MudText>
+
+                                @if (_selectedTask.Comments.Count == 0)
+                                {
+                                    <MudText Typo="Typo.body2">@L["tasks_no_comments"]</MudText>
+                                }
+                                else
+                                {
+                                    @foreach (var comment in _selectedTask.Comments.OrderByDescending(c => c.CreatedAt))
+                                    {
+                                        <MudPaper Class="pa-2" Outlined="true">
+                                            <MudText Typo="Typo.subtitle2">@comment.AuthorName</MudText>
+                                            <MudText Typo="Typo.caption">@KyrgyzstanTime.FormatDateTime(comment.CreatedAt)</MudText>
+                                            <MudText Typo="Typo.body2" Class="mt-1">@comment.Text</MudText>
+                                        </MudPaper>
+                                    }
+                                }
+
+                                <MudTextField @bind-Value="_newComment"
+                                              Placeholder="@L["tasks_add_comment"]"
+                                              Lines="3"
+                                              Variant="Variant.Outlined" />
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddCommentAsync">
+                                    @L["tasks_send_comment"]
+                                </MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    </MudStack>
+                }
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudStack>
+
+<MudDialog @bind-Visible="_createOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@L["tasks_new"]</MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_newTitle"
+                          Label="@L["field_name"]"
+                          Required="true"
+                          Variant="Variant.Outlined" />
+
+            <MudTextField @bind-Value="_newDesc"
+                          Label="@L["field_desc"]"
+                          Lines="3"
+                          Variant="Variant.Outlined" />
+
+            <MudSelect T="WorkTaskPriority"
+                       @bind-Value="_newPriority"
+                       Label="@L["tasks_priority"]"
+                       Variant="Variant.Outlined">
+                <MudSelectItem Value="WorkTaskPriority.Low">@L["priority_low_f"]</MudSelectItem>
+                <MudSelectItem Value="WorkTaskPriority.Medium">@L["priority_medium_f"]</MudSelectItem>
+                <MudSelectItem Value="WorkTaskPriority.High">@L["priority_high_f"]</MudSelectItem>
+                <MudSelectItem Value="WorkTaskPriority.Critical">@L["priority_critical_f"]</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="string"
+                       @bind-Value="_newAssigneeId"
+                       Label="@L["tasks_assignee"]"
+                       Variant="Variant.Outlined"
+                       Clearable="true">
+                @foreach (var user in _users)
+                {
+                    <MudSelectItem Value="@user.Id">@user.UserName</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudDatePicker @bind-Date="_newDueDate"
+                           Label="@L["tasks_due"]"
+                           Variant="Variant.Outlined" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="@(() => _createOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateTaskAsync">
+            @L["btn_create"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid? TaskId { get; set; }
+    [SupplyParameterFromQuery(Name = "project")] public Guid? ProjectId { get; set; }
+
+    private List<WorkTaskSummary> _tasks = [];
+    private List<UserDto> _users = [];
+    private List<Project> _projects = [];
+    private WorkTaskDetailDto? _selectedTask;
+    private bool _loading = true;
+    private bool _loadingTask;
+    private string _view = "list";
+    private string? _filterStatus;
+    private Guid? _filterProjectId;
+    private bool _myOnly;
+    private bool _createOpen;
+    private string _newTitle = "";
+    private string? _newDesc;
+    private WorkTaskPriority _newPriority = WorkTaskPriority.Medium;
+    private string? _newAssigneeId;
+    private DateTime? _newDueDate;
+    private string _currentUserId = string.Empty;
+    private WorkTaskStatus _selectedStatus;
+    private string _newComment = string.Empty;
+    private string _newChecklistText = string.Empty;
+    private bool _pinUploads = true;
+    private Project? _currentProject;
+    private Guid? _lastProjectId;
+    private int _currentPage = 1;
+    private const int PageSize = 8;
+
+    private IEnumerable<FileAttachmentDto> OrderedAttachments => _selectedTask is null
+        ? []
+        : _selectedTask.Attachments
+            .OrderByDescending(a => a.IsPinned)
+            .ThenByDescending(a => a.UploadedAt);
+
+    private IEnumerable<WorkTaskSummary> PagedTasks => _tasks
+        .Skip((_currentPage - 1) * PageSize)
+        .Take(PageSize);
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_tasks.Count / (double)PageSize));
+    private int PaginationStart => _tasks.Count == 0 ? 0 : ((_currentPage - 1) * PageSize) + 1;
+    private int PaginationEnd => Math.Min(_currentPage * PageSize, _tasks.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        var usersTask = EmployeeSvc.GetAllAsync();
+        var projectsTask = ProjectSvc.GetAllAsync();
+
+        await Task.WhenAll(usersTask, projectsTask);
+
+        _users = await usersTask;
+        _projects = await projectsTask;
+        _filterProjectId = ProjectId;
+        _currentProject = ResolveCurrentProject();
+        _lastProjectId = ProjectId;
+
+        await LoadTasksAsync();
+        await LoadSelectedTaskAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _filterProjectId = ProjectId;
+        _currentProject = ResolveCurrentProject();
+
+        if (_lastProjectId != ProjectId && _projects.Count > 0)
+        {
+            _lastProjectId = ProjectId;
+            await LoadTasksAsync();
+        }
+
+        await LoadSelectedTaskAsync();
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        _loading = true;
+        try
+        {
+            _tasks = _myOnly
+                ? await TaskSvc.GetMyAsync()
+                : await TaskSvc.GetAllAsync(_filterStatus, null, _filterProjectId);
+
+            NormalizePagination();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadSelectedTaskAsync()
+    {
+        if (TaskId is null)
+        {
+            _selectedTask = null;
+            return;
+        }
+
+        _loadingTask = true;
+        try
+        {
+            _selectedTask = await TaskSvc.GetAsync(TaskId.Value);
+            if (_selectedTask is not null)
+                _selectedStatus = _selectedTask.Status;
+        }
+        catch
+        {
+            _selectedTask = null;
+        }
+        finally
+        {
+            _loadingTask = false;
+        }
+    }
+
+    private void SelectTask(Guid id)
+        => Nav.NavigateTo(ProjectId.HasValue ? $"/tasks/{id}?project={ProjectId}" : $"/tasks/{id}");
+
+    private void CloseTask()
+        => Nav.NavigateTo(ProjectId.HasValue ? $"/tasks?project={ProjectId}" : "/tasks");
+
+    private void ClearProjectFilter()
+    {
+        _filterProjectId = null;
+        _currentProject = null;
+        Nav.NavigateTo("/tasks");
+    }
+
+    private void OpenCreateDialog()
+    {
+        _newTitle = string.Empty;
+        _newDesc = null;
+        _newPriority = WorkTaskPriority.Medium;
+        _newAssigneeId = null;
+        _newDueDate = null;
+        _createOpen = true;
+    }
+
+    private async Task CreateTaskAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle))
+            return;
+
+        await TaskSvc.CreateAsync(new CreateWorkTaskRequest(
+            _newTitle,
+            _newDesc,
+            _newPriority,
+            _newAssigneeId,
+            null,
+            _newDueDate,
+            null,
+            ProjectId));
+
+        _createOpen = false;
+        Snackbar.Add(L["tasks_created"], Severity.Success);
+        await LoadTasksAsync();
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _currentPage = 1;
+        _currentProject = ResolveCurrentProject();
+        await LoadTasksAsync();
+    }
+
+    private Project? ResolveCurrentProject()
+        => _filterProjectId.HasValue ? _projects.FirstOrDefault(project => project.Id == _filterProjectId.Value) : null;
+
+    private string? TryGetProjectName(Guid? projectId)
+        => projectId.HasValue
+            ? _projects.FirstOrDefault(project => project.Id == projectId.Value)?.Name
+            : null;
+
+    private bool CanTakeInWork(WorkTaskSummary task)
+        => task.AssigneeId == _currentUserId && task.Status == WorkTaskStatus.New;
+
+    private bool CanTakeInWork(WorkTaskDetailDto task)
+        => task.AssigneeId == _currentUserId && task.Status == WorkTaskStatus.New;
+
+    private bool CanMoveToTodo(WorkTaskSummary task)
+        => task.AssigneeId == _currentUserId;
+
+    private bool CanMoveToTodo(WorkTaskDetailDto task)
+        => task.AssigneeId == _currentUserId;
+
+    private bool CanUpdateStatus(WorkTaskDetailDto task)
+        => task.AssigneeId == _currentUserId || task.AuthorId == _currentUserId;
+
+    private bool CanDelete(WorkTaskSummary task)
+        => task.AuthorId == _currentUserId;
+
+    private bool CanDelete(WorkTaskDetailDto task)
+        => task.AuthorId == _currentUserId;
+
+    private async Task AcceptTaskAsync(WorkTaskSummary task)
+    {
+        await TaskSvc.AcceptAsync(task.Id);
+        Snackbar.Add(L["tasks_accepted"], Severity.Success);
+        await RefreshAfterTaskChange(task.Id);
+    }
+
+    private async Task AcceptTaskAsync(WorkTaskDetailDto task)
+    {
+        await TaskSvc.AcceptAsync(task.Id);
+        Snackbar.Add(L["tasks_accepted"], Severity.Success);
+        await RefreshAfterTaskChange(task.Id);
+    }
+
+    private async Task MoveTaskToTodoAsync(WorkTaskSummary task)
+    {
+        await TaskSvc.MoveToTodoAsync(task.Id);
+        Snackbar.Add(L["tasks_moved_todo"], Severity.Success);
+    }
+
+    private async Task MoveTaskToTodoAsync(WorkTaskDetailDto task)
+    {
+        await TaskSvc.MoveToTodoAsync(task.Id);
+        Snackbar.Add(L["tasks_moved_todo"], Severity.Success);
+    }
+
+    private async Task ConfirmDeleteTaskAsync(Guid taskId, string taskTitle)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["tasks_delete_title"],
+            string.Format(L["tasks_delete_confirm"], taskTitle),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed == true)
+            await DeleteTaskAsync(taskId);
+    }
+
+    private async Task DeleteTaskAsync(Guid taskId)
+    {
+        await TaskSvc.DeleteAsync(taskId);
+
+        _tasks.RemoveAll(task => task.Id == taskId);
+        NormalizePagination();
+
+        if (TaskId == taskId)
+        {
+            _selectedTask = null;
+            CloseTask();
+        }
+
+        Snackbar.Add(L["tasks_deleted"], Severity.Info);
+    }
+
+    private async Task UpdateSelectedTaskStatusAsync()
+    {
+        if (_selectedTask is null)
+            return;
+
+        await TaskSvc.UpdateStatusAsync(_selectedTask.Id, _selectedStatus);
+        Snackbar.Add(L["tasks_status_updated"], Severity.Success);
+        await RefreshAfterTaskChange(_selectedTask.Id);
+    }
+
+    private async Task AddCommentAsync()
+    {
+        if (_selectedTask is null || string.IsNullOrWhiteSpace(_newComment))
+            return;
+
+        var comment = await TaskSvc.AddCommentAsync(_selectedTask.Id, _newComment.Trim());
+        if (comment is not null)
+        {
+            _selectedTask.Comments.Insert(0, comment);
+            _newComment = string.Empty;
+            await LoadTasksAsync();
+        }
+    }
+
+    private async Task AddChecklistAsync()
+    {
+        if (_selectedTask is null || string.IsNullOrWhiteSpace(_newChecklistText))
+            return;
+
+        var item = await TaskSvc.AddChecklistItemAsync(_selectedTask.Id, _newChecklistText.Trim());
+        if (item is not null)
+        {
+            _selectedTask.Checklist.Add(item);
+            _newChecklistText = string.Empty;
+            await LoadTasksAsync();
+        }
+    }
+
+    private async Task ToggleChecklistAsync(Guid itemId)
+    {
+        if (_selectedTask is null)
+            return;
+
+        await TaskSvc.ToggleChecklistItemAsync(_selectedTask.Id, itemId);
+        var item = _selectedTask.Checklist.FirstOrDefault(i => i.Id == itemId);
+        if (item is not null)
+            item.IsChecked = !item.IsChecked;
+
+        await LoadTasksAsync();
+    }
+
+    private async Task DeleteChecklistAsync(Guid itemId)
+    {
+        if (_selectedTask is null)
+            return;
+
+        await TaskSvc.DeleteChecklistItemAsync(_selectedTask.Id, itemId);
+        _selectedTask.Checklist.RemoveAll(i => i.Id == itemId);
+        await LoadTasksAsync();
+    }
+    private async Task UploadTaskFilesAsync(InputFileChangeEventArgs args)
+    {
+        if (_selectedTask is null)
+            return;
+
+        var files = args.GetMultipleFiles().ToList();
+        if (files.Count == 0)
+            return;
+
+        try
+        {
+            var uploaded = await TaskSvc.UploadAttachmentsAsync(_selectedTask.Id, files, _pinUploads);
+            if (uploaded.Count > 0)
+            {
+                await RefreshAfterTaskChange(_selectedTask.Id);
+                Snackbar.Add(L["tasks_files_attached"], Severity.Success);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+    }
+
+    private async Task ToggleAttachmentPinAsync(Guid attachmentId)
+    {
+        if (_selectedTask is null)
+            return;
+
+        await TaskSvc.ToggleAttachmentPinAsync(_selectedTask.Id, attachmentId);
+        await LoadSelectedTaskAsync();
+    }
+
+    private async Task DeleteAttachmentAsync(Guid attachmentId)
+    {
+        if (_selectedTask is null)
+            return;
+
+        await TaskSvc.DeleteAttachmentAsync(_selectedTask.Id, attachmentId);
+        await LoadSelectedTaskAsync();
+        Snackbar.Add(L["tasks_file_deleted"], Severity.Info);
+    }
+
+    private async Task DownloadAttachmentAsync(FileAttachmentDto attachment)
+    {
+        try
+        {
+            await FileDownloader.DownloadAsync(attachment.DownloadUrl, attachment.FileName);
+        }
+        catch
+        {
+            Snackbar.Add(L["msg_download_failed"], Severity.Error);
+        }
+    }
+
+    private static string GetAttachmentIcon(FileAttachmentDto attachment)
+    {
+        var name = attachment.FileName.ToLowerInvariant();
+        var contentType = attachment.ContentType?.ToLowerInvariant() ?? string.Empty;
+
+        if (contentType.StartsWith("image/") || name.EndsWith(".png") || name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".gif") || name.EndsWith(".webp"))
+            return Icons.Material.Filled.Image;
+        if (contentType.StartsWith("video/") || name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".avi"))
+            return Icons.Material.Filled.Movie;
+        if (contentType.StartsWith("audio/") || name.EndsWith(".mp3") || name.EndsWith(".wav") || name.EndsWith(".ogg"))
+            return Icons.Material.Filled.Audiotrack;
+        if (name.EndsWith(".pdf"))
+            return Icons.Material.Filled.PictureAsPdf;
+        if (name.EndsWith(".doc") || name.EndsWith(".docx") || name.EndsWith(".txt") || name.EndsWith(".rtf"))
+            return Icons.Material.Filled.Description;
+        if (name.EndsWith(".xls") || name.EndsWith(".xlsx") || name.EndsWith(".csv"))
+            return Icons.Material.Filled.TableChart;
+        if (name.EndsWith(".zip") || name.EndsWith(".rar") || name.EndsWith(".7z"))
+            return Icons.Material.Filled.FolderZip;
+
+        return Icons.Material.Filled.InsertDriveFile;
+    }
+
+    private static string GetAttachmentAccentClass(FileAttachmentDto attachment)
+    {
+        var name = attachment.FileName.ToLowerInvariant();
+        var contentType = attachment.ContentType?.ToLowerInvariant() ?? string.Empty;
+
+        if (contentType.StartsWith("image/") || name.EndsWith(".png") || name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".gif") || name.EndsWith(".webp"))
+            return "attachment-icon--image";
+        if (contentType.StartsWith("video/") || name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".avi"))
+            return "attachment-icon--video";
+        if (contentType.StartsWith("audio/") || name.EndsWith(".mp3") || name.EndsWith(".wav") || name.EndsWith(".ogg"))
+            return "attachment-icon--audio";
+        if (name.EndsWith(".pdf"))
+            return "attachment-icon--pdf";
+        if (name.EndsWith(".doc") || name.EndsWith(".docx") || name.EndsWith(".txt") || name.EndsWith(".rtf"))
+            return "attachment-icon--doc";
+        if (name.EndsWith(".xls") || name.EndsWith(".xlsx") || name.EndsWith(".csv"))
+            return "attachment-icon--sheet";
+        if (name.EndsWith(".zip") || name.EndsWith(".rar") || name.EndsWith(".7z"))
+            return "attachment-icon--archive";
+
+        return "attachment-icon--default";
+    }
+
+    private async Task RefreshAfterTaskChange(Guid taskId)
+    {
+        await LoadTasksAsync();
+        if (TaskId == taskId)
+            await LoadSelectedTaskAsync();
+    }
+
+    private void NormalizePagination()
+    {
+        if (_currentPage < 1)
+            _currentPage = 1;
+
+        if (_currentPage > TotalPages)
+            _currentPage = TotalPages;
+    }
+
+    private Task OnPageChanged(int page)
+    {
+        _currentPage = page;
+        return Task.CompletedTask;
+    }
+
+    private static string FormatBytes(long size)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double value = size;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value:0.#} {units[unitIndex]}";
+    }
+
+    private string GetStatusClass(WorkTaskStatus status) => status switch
+    {
+        WorkTaskStatus.New => "status-chip status-new",
+        WorkTaskStatus.InProgress => "status-chip status-progress",
+        WorkTaskStatus.Review => "status-chip status-review",
+        WorkTaskStatus.Done => "status-chip status-done",
+        _ => "status-chip"
+    };
+
+    private string GetStatusLabel(WorkTaskStatus status) => status switch
+    {
+        WorkTaskStatus.New => L["status_new"],
+        WorkTaskStatus.InProgress => L["status_inprogress"],
+        WorkTaskStatus.Review => L["status_review"],
+        WorkTaskStatus.Done => L["status_done"],
+        _ => L["status_cancelled"]
+    };
+
+    private string GetPriorityClass(WorkTaskPriority priority) => priority switch
+    {
+        WorkTaskPriority.Critical => "priority-chip priority-critical",
+        WorkTaskPriority.High => "priority-chip priority-high",
+        WorkTaskPriority.Medium => "priority-chip priority-medium",
+        _ => "priority-chip priority-low"
+    };
+
+    private string GetPriorityLabel(WorkTaskPriority priority) => priority switch
+    {
+        WorkTaskPriority.Critical => L["priority_critical"],
+        WorkTaskPriority.High => L["priority_high"],
+        WorkTaskPriority.Medium => L["priority_medium"],
+        _ => L["priority_low"]
+    };
+}

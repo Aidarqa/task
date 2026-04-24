@@ -1,0 +1,444 @@
+@page "/calendar"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject CalendarService CalendarSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>@L["cal_title"] - @L["app_name"]</PageTitle>
+
+<div class="calendar-page">
+    <MudPaper Class="calendar-toolbar" Elevation="0">
+        <div class="calendar-toolbar__left">
+            <div class="calendar-title-wrap">
+                <MudText Typo="Typo.h4" Class="calendar-title">@L["cal_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="calendar-subtitle">
+                    @L["cal_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="calendar-toolbar__right">
+            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" Class="calendar-nav-group">
+                <MudButton OnClick="PrevMonth">
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronLeft" />
+                </MudButton>
+                <MudButton OnClick="GoToday">@L["cal_today"]</MudButton>
+                <MudButton OnClick="NextMonth">
+                    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" />
+                </MudButton>
+            </MudButtonGroup>
+
+            <MudChip T="string" Color="Color.Primary" Variant="Variant.Text" Class="calendar-month-chip" Size="Size.Medium">
+                @_currentDate.ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo(L.Lang == "ky" ? "ky-KG" : "ru-RU"))
+            </MudChip>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreate"
+                       Class="calendar-create-btn">
+                @L["cal_new_event"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="calendar-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["cal_loading"]</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="calendar-board" Elevation="0">
+            <div class="calendar-grid">
+                @foreach (var day in L["cal_days_ru"].Split(','))
+                {
+                    <div class="calendar-day-header">@day</div>
+                }
+
+                @foreach (var cell in _calendarCells)
+                {
+                    var dayEvents = _events.Where(e => EventIntersectsDay(e, cell.Date)).ToList();
+
+                    <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell--other") @(cell.Date == KyrgyzstanTime.Today ? "calendar-cell--today" : "")">
+                        <div class="calendar-cell-top">
+                            <div class="calendar-cell-num">@cell.Date.Day</div>
+                            @if (dayEvents.Count > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="calendar-count-chip">
+                                    @dayEvents.Count
+                                </MudChip>
+                            }
+                        </div>
+
+                        <div class="calendar-cell-events">
+                            @foreach (var ev in dayEvents.Take(3))
+                            {
+                                <button type="button"
+                                        class="calendar-event-pill"
+                                        style="border-left-color:@ev.Color"
+                                        @onclick="@(() => ShowEventDetail(ev))">
+                                    <span class="calendar-event-pill__time">
+                                        @(ev.IsAllDay ? L["cal_all_day"] : KyrgyzstanTime.FormatDateTime(ev.StartTime))
+                                    </span>
+                                    <span class="calendar-event-pill__title">@ev.Title</span>
+                                </button>
+                            }
+
+                            @if (dayEvents.Count > 3)
+                            {
+                                <div class="calendar-event-more">
+                                    +@(dayEvents.Count - 3) @L["cal_more"]
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+    }
+</div>
+
+<MudDialog @bind-Visible="_createOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingEventId.HasValue ? L["cal_edit_event"] : L["cal_create_event"])</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="calendar-dialog-body">
+            <MudTextField @bind-Value="_newTitle"
+                          Label="@L["field_name"]"
+                          Required="true"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudTextField @bind-Value="_newDesc"
+                          Label="@L["field_desc"]"
+                          Lines="3"
+                          Variant="Variant.Outlined"
+                          Class="mb-3" />
+
+            <MudSelect T="CalendarEventType"
+                       @bind-Value="_newType"
+                       Label="@L["cal_event_type"]"
+                       Variant="Variant.Outlined"
+                       Class="mb-3">
+                <MudSelectItem Value="CalendarEventType.Meeting">@L["cal_type_meeting"]</MudSelectItem>
+                <MudSelectItem Value="CalendarEventType.Task">@L["cal_type_task"]</MudSelectItem>
+                <MudSelectItem Value="CalendarEventType.Personal">@L["cal_type_personal"]</MudSelectItem>
+                <MudSelectItem Value="CalendarEventType.TeamEvent">@L["cal_type_team"]</MudSelectItem>
+            </MudSelect>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_newStart"
+                                   Label="@L["field_start"]"
+                                   Variant="Variant.Outlined"
+                                   Class="mb-2" />
+                    <MudTimePicker @bind-Time="_newStartTime"
+                                   Label="@L["cal_start_time"]"
+                                   Variant="Variant.Outlined"
+                                   Disabled="_newAllDay" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_newEnd"
+                                   Label="@L["field_end"]"
+                                   Variant="Variant.Outlined"
+                                   Class="mb-2" />
+                    <MudTimePicker @bind-Time="_newEndTime"
+                                   Label="@L["cal_end_time"]"
+                                   Variant="Variant.Outlined"
+                                   Disabled="_newAllDay" />
+                </MudItem>
+            </MudGrid>
+
+            <MudCheckBox @bind-Value="_newAllDay"
+                         Label="@L["cal_all_day"]"
+                         Class="mt-3" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _createOpen = false)">
+            @L["btn_cancel"]
+        </MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="SaveEventAsync">
+            @(_editingEventId.HasValue ? L["btn_save"] : L["btn_create"])
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_detailOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@_selectedEvent?.Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_selectedEvent is not null)
+        {
+            <div class="calendar-dialog-body">
+                <MudPaper Class="event-detail-card" Elevation="0">
+                    <MudStack Spacing="2">
+                        <MudText Typo="Typo.body2">
+                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Class="mr-1" />
+                            @GetEventTimeRange(_selectedEvent)
+                        </MudText>
+
+                        @if (!string.IsNullOrWhiteSpace(_selectedEvent.Description))
+                        {
+                            <MudText Typo="Typo.body2">@_selectedEvent.Description</MudText>
+                        }
+
+                        <MudDivider />
+
+                        <MudText Typo="Typo.body2">
+                            <b>@L["cal_organizer"]:</b> @_selectedEvent.OrganizerName
+                        </MudText>
+
+                        @if (_selectedEvent.Participants.Count > 0)
+                        {
+                            <div>
+                                <MudText Typo="Typo.body2" Class="mb-2">
+                                    <b>@L["cal_participants"]:</b>
+                                </MudText>
+
+                                <div class="participants-wrap">
+                                    @foreach (var p in _selectedEvent.Participants)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                                            @p.UserName
+                                        </MudChip>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </MudStack>
+                </MudPaper>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="EditEvent" Color="Color.Primary">
+            @L["cal_edit"]
+        </MudButton>
+        <MudButton OnClick="DeleteEvent" Color="Color.Error">
+            @L["cal_delete"]
+        </MudButton>
+        <MudButton OnClick="@(() => _detailOpen = false)">
+            @L["btn_close"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<CalendarEventDto> _events = [];
+    private bool _loading = true;
+    private DateTime _currentDate = KyrgyzstanTime.Today;
+    private List<CalendarCell> _calendarCells = [];
+    private bool _createOpen;
+    private bool _detailOpen;
+    private Guid? _editingEventId;
+    private CalendarEventDto? _selectedEvent;
+    private string _newTitle = "";
+    private string? _newDesc;
+    private CalendarEventType _newType = CalendarEventType.Meeting;
+    private DateTime? _newStart = KyrgyzstanTime.Today;
+    private DateTime? _newEnd = KyrgyzstanTime.Today;
+    private TimeSpan? _newStartTime = TimeSpan.FromHours(9);
+    private TimeSpan? _newEndTime = TimeSpan.FromHours(10);
+    private bool _newAllDay;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        BuildCalendarCells();
+
+        var from = new DateTime(_currentDate.Year, _currentDate.Month, 1, 0, 0, 0, DateTimeKind.Local);
+        var to = from.AddMonths(1).AddTicks(-1);
+
+        try
+        {
+            _events = await CalendarSvc.GetEventsAsync(from, to);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildCalendarCells()
+    {
+        _calendarCells.Clear();
+
+        var first = new DateTime(_currentDate.Year, _currentDate.Month, 1);
+        var startDow = (int)first.DayOfWeek;
+        if (startDow == 0) startDow = 7;
+
+        var start = first.AddDays(-(startDow - 1));
+
+        for (int i = 0; i < 42; i++)
+        {
+            var d = start.AddDays(i);
+            _calendarCells.Add(new CalendarCell(d, d.Month == _currentDate.Month));
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        _currentDate = _currentDate.AddMonths(-1);
+        await LoadAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        _currentDate = _currentDate.AddMonths(1);
+        await LoadAsync();
+    }
+
+    private async Task GoToday()
+    {
+        _currentDate = KyrgyzstanTime.Today;
+        await LoadAsync();
+    }
+
+    private void OpenCreate()
+    {
+        _editingEventId = null;
+        _selectedEvent = null;
+        _detailOpen = false;
+        _newTitle = "";
+        _newDesc = null;
+        _newType = CalendarEventType.Meeting;
+        _newStart = KyrgyzstanTime.Today;
+        _newEnd = KyrgyzstanTime.Today;
+        _newStartTime = TimeSpan.FromHours(9);
+        _newEndTime = TimeSpan.FromHours(10);
+        _newAllDay = false;
+        _createOpen = true;
+    }
+
+    private void ShowEventDetail(CalendarEventDto ev)
+    {
+        _selectedEvent = ev;
+        _detailOpen = true;
+    }
+
+    private void EditEvent()
+    {
+        if (_selectedEvent is null)
+            return;
+
+        _editingEventId = _selectedEvent.Id;
+        _newTitle = _selectedEvent.Title;
+        _newDesc = _selectedEvent.Description;
+        _newType = _selectedEvent.EventType;
+        _newStart = _selectedEvent.StartTime.Date;
+        _newEnd = _selectedEvent.EndTime.Date;
+        _newAllDay = _selectedEvent.IsAllDay;
+        _newStartTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(9) : _selectedEvent.StartTime.TimeOfDay;
+        _newEndTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(10) : _selectedEvent.EndTime.TimeOfDay;
+        _detailOpen = false;
+        _createOpen = true;
+    }
+
+    private async Task SaveEventAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle))
+            return;
+
+        var startDate = _newStart ?? KyrgyzstanTime.Today;
+        var endDate = _newEnd ?? startDate;
+
+        DateTime start;
+        DateTime end;
+
+        if (_newAllDay)
+        {
+            start = startDate.Date;
+            end = endDate.Date.AddDays(1).AddTicks(-1);
+        }
+        else
+        {
+            start = startDate.Date + (_newStartTime ?? TimeSpan.FromHours(9));
+            end = endDate.Date + (_newEndTime ?? TimeSpan.FromHours(10));
+        }
+
+        if (end <= start)
+        {
+            Snackbar.Add(L["cal_end_after_start"], Severity.Warning);
+            return;
+        }
+
+        var editingEventId = _editingEventId;
+
+        if (editingEventId.HasValue)
+        {
+            await CalendarSvc.UpdateAsync(editingEventId.Value, new UpdateCalendarEventRequest(
+                _newTitle,
+                _newDesc,
+                start,
+                end,
+                _newAllDay,
+                _selectedEvent?.Color ?? "#579DFF",
+                _newType,
+                _selectedEvent?.ResourceId));
+        }
+        else
+        {
+            await CalendarSvc.CreateAsync(new CreateCalendarEventRequest(
+                _newTitle,
+                _newDesc,
+                start,
+                end,
+                _newAllDay,
+                "#579DFF",
+                _newType));
+        }
+
+        _createOpen = false;
+        _editingEventId = null;
+        await LoadAsync();
+
+        if (editingEventId.HasValue)
+        {
+            _selectedEvent = _events.FirstOrDefault(e => e.Id == editingEventId.Value);
+            Snackbar.Add(L["cal_updated"], Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(L["cal_created"], Severity.Success);
+        }
+    }
+
+    private async Task DeleteEvent()
+    {
+        if (_selectedEvent is null)
+            return;
+
+        await CalendarSvc.DeleteAsync(_selectedEvent.Id);
+        _events.RemoveAll(e => e.Id == _selectedEvent.Id);
+        _selectedEvent = null;
+        _editingEventId = null;
+        _detailOpen = false;
+        Snackbar.Add(L["cal_deleted"], Severity.Info);
+    }
+
+    private static bool EventIntersectsDay(CalendarEventDto ev, DateTime day)
+    {
+        var dayStart = day.Date;
+        var dayEnd = dayStart.AddDays(1);
+        return ev.StartTime < dayEnd && ev.EndTime >= dayStart;
+    }
+
+    private static string GetEventTimeRange(CalendarEventDto ev)
+        => KyrgyzstanTime.FormatDateTimeRange(ev.StartTime, ev.EndTime);
+
+    private record CalendarCell(DateTime Date, bool IsCurrentMonth);
+}

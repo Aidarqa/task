@@ -1,0 +1,44 @@
+@inject LocalizationService L
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_value" Label="@Label" Variant="Variant.Outlined"
+                      Placeholder="@Placeholder" AutoFocus="true"
+                      OnKeyDown="HandleKeyDown" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform:none;">@L["btn_cancel"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit"
+                   Disabled="@(string.IsNullOrWhiteSpace(_value))" Style="text-transform:none;">
+            @L["board_ok"]
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "";
+    [Parameter] public string InitialValue { get; set; } = "";
+
+    private string _value = "";
+
+    protected override void OnInitialized() => _value = InitialValue;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (!string.IsNullOrWhiteSpace(_value))
+            MudDialog.Close(DialogResult.Ok(_value));
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Submit();
+    }
+}

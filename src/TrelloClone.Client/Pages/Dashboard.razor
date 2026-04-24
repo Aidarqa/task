@@ -1,0 +1,212 @@
+@page "/"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject DashboardService DashboardSvc
+@inject NavigationManager Nav
+
+<PageTitle>@L["dash_title"] - @L["app_name"]</PageTitle>
+
+<div class="dashboard-page">
+    <MudPaper Class="dashboard-hero" Elevation="0">
+        <div class="dashboard-hero__content">
+            <div>
+                <MudText Typo="Typo.h4" Class="dashboard-page-title">@L["dash_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="dashboard-page-subtitle">
+                    @L["dash_subtitle"]
+                </MudText>
+            </div>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="dashboard-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["dash_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (_stats is not null)
+    {
+        <div class="dashboard-stats-grid">
+            <MudPaper Class="stat-card-modern" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks"))">
+                <div class="stat-icon-modern stat-icon-modern--blue">
+                    <MudIcon Icon="@Icons.Material.Filled.Assignment" />
+                </div>
+                <div class="stat-info-modern">
+                    <div class="stat-value-modern">@_stats.TotalTasks</div>
+                    <div class="stat-label-modern">@L["dash_total_tasks"]</div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="stat-card-modern" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks"))">
+                <div class="stat-icon-modern stat-icon-modern--green">
+                    <MudIcon Icon="@Icons.Material.Filled.PersonPin" />
+                </div>
+                <div class="stat-info-modern">
+                    <div class="stat-value-modern">@_stats.MyTasks</div>
+                    <div class="stat-label-modern">@L["dash_my_tasks"]</div>
+                </div>
+            </MudPaper>
+
+            @{
+                var overdueClass = $"stat-card-modern {(_stats.OverdueTasks > 0 ? "stat-card-modern--danger" : "")}";
+            }
+            <MudPaper Class="@overdueClass" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks"))">
+                <div class="stat-icon-modern stat-icon-modern--red">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" />
+                </div>
+                <div class="stat-info-modern">
+                    <div class="stat-value-modern">@_stats.OverdueTasks</div>
+                    <div class="stat-label-modern">@L["dash_overdue"]</div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="stat-card-modern" Elevation="0" @onclick="@(() => Nav.NavigateTo("/calendar"))">
+                <div class="stat-icon-modern stat-icon-modern--purple">
+                    <MudIcon Icon="@Icons.Material.Filled.Event" />
+                </div>
+                <div class="stat-info-modern">
+                    <div class="stat-value-modern">@_stats.UpcomingEvents</div>
+                    <div class="stat-label-modern">@L["dash_events_week"]</div>
+                </div>
+            </MudPaper>
+        </div>
+
+        <div class="dashboard-content-grid">
+            <MudPaper Class="dashboard-card-modern" Elevation="0">
+                <div class="dashboard-card-header-modern">
+                    <MudText Typo="Typo.h6">@L["dash_recent_tasks"]</MudText>
+                    <MudButton Variant="Variant.Text"
+                               Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo("/tasks"))">
+                        @L["btn_all"]
+                    </MudButton>
+                </div>
+
+                @if (_stats.RecentTasks.Count == 0)
+                {
+                    <div class="dashboard-empty-hint">@L["dash_no_tasks"]</div>
+                }
+                else
+                {
+                    <div class="dashboard-task-list-modern">
+                        @foreach (var t in _stats.RecentTasks)
+                        {
+                            <div class="dashboard-task-row-modern" @onclick="@(() => Nav.NavigateTo($"/tasks/{t.Id}"))">
+                                <div class="dashboard-task-row-left">
+                                    <MudChip T="string" Size="Size.Small" Class="@GetStatusClass(t.Status)">
+                                        @GetStatusLabel(t.Status)
+                                    </MudChip>
+
+                                    <span class="dashboard-task-title-modern">@t.Title</span>
+                                </div>
+
+                                <div class="dashboard-task-row-right">
+                                    @if (t.DueDate.HasValue)
+                                    {
+                                        var dueClass = t.DueDate < KyrgyzstanTime.Now
+                                            ? "dashboard-due-modern dashboard-due-modern--overdue"
+                                            : "dashboard-due-modern";
+
+                                        <span class="@dueClass">
+                                            @KyrgyzstanTime.FormatDateTime(t.DueDate.Value)
+                                        </span>
+                                    }
+
+                                    <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(t.Priority)">
+                                        @GetPriorityLabel(t.Priority)
+                                    </MudChip>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="dashboard-card-modern" Elevation="0">
+                <div class="dashboard-card-header-modern">
+                    <MudText Typo="Typo.h6">@L["dash_today_events"]</MudText>
+                    <MudButton Variant="Variant.Text"
+                               Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo("/calendar"))">
+                        @L["dash_calendar"]
+                    </MudButton>
+                </div>
+
+                @if (_stats.TodayEvents.Count == 0)
+                {
+                    <div class="dashboard-empty-hint">@L["dash_no_events"]</div>
+                }
+                else
+                {
+                    <div class="dashboard-event-list-modern">
+                        @foreach (var e in _stats.TodayEvents)
+                        {
+                            <div class="dashboard-event-row-modern">
+                                <div class="dashboard-event-color" style="background:@e.Color"></div>
+
+                                <div class="dashboard-event-info">
+                                    <div class="dashboard-event-title">@e.Title</div>
+                                    <div class="dashboard-event-time">
+                                        @KyrgyzstanTime.FormatDateTimeRange(e.StartTime, e.EndTime)
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </div>
+    }
+</div>
+
+@code {
+    private DashboardStats? _stats;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _stats = await DashboardSvc.GetStatsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetStatusClass(WorkTaskStatus s) => s switch
+    {
+        WorkTaskStatus.New => "status-chip status-new",
+        WorkTaskStatus.InProgress => "status-chip status-progress",
+        WorkTaskStatus.Review => "status-chip status-review",
+        WorkTaskStatus.Done => "status-chip status-done",
+        _ => "status-chip"
+    };
+
+    private string GetStatusLabel(WorkTaskStatus s) => s switch
+    {
+        WorkTaskStatus.New => L["status_new"],
+        WorkTaskStatus.InProgress => L["status_inprogress"],
+        WorkTaskStatus.Review => L["status_review"],
+        WorkTaskStatus.Done => L["status_done"],
+        _ => L["status_cancelled"]
+    };
+
+    private string GetPriorityClass(WorkTaskPriority p) => p switch
+    {
+        WorkTaskPriority.Critical => "priority-chip priority-critical",
+        WorkTaskPriority.High => "priority-chip priority-high",
+        WorkTaskPriority.Medium => "priority-chip priority-medium",
+        _ => "priority-chip priority-low"
+    };
+
+    private string GetPriorityLabel(WorkTaskPriority p) => p switch
+    {
+        WorkTaskPriority.Critical => L["priority_critical"],
+        WorkTaskPriority.High => L["priority_high"],
+        WorkTaskPriority.Medium => L["priority_medium"],
+        _ => L["priority_low"]
+    };
+}

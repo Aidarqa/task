@@ -1,0 +1,166 @@
+@page "/employees"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject EmployeeService EmployeeSvc
+
+<PageTitle>@L["emp_title"] - @L["app_name"]</PageTitle>
+
+<div class="employees-page">
+    <MudPaper Class="employees-toolbar" Elevation="0">
+        <div class="employees-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="employees-page-title">@L["emp_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="employees-page-subtitle">
+                    @L["emp_subtitle"]
+                </MudText>
+            </div>
+        </div>
+
+        <div class="employees-toolbar__right">
+            <MudTextField @bind-Value="_search"
+                          Placeholder="@L["search"]"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Class="employees-search" />
+
+            <MudSelect T="Guid?"
+                       @bind-Value="_filterDeptId"
+                       Label="@L["emp_department"]"
+                       Variant="Variant.Outlined"
+                       Class="employees-dept-filter ma-0"
+                       Clearable="true">
+                @foreach (var d in _departments)
+                {
+                    <MudSelectItem Value="@((Guid?)d.Id)">@d.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="employees-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["emp_loading"]</MudText>
+        </MudPaper>
+    }
+    else if (!FilteredUsers.Any())
+    {
+        <MudPaper Class="employees-empty-state" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Class="employees-empty-icon" />
+            <MudText Typo="Typo.h6">@L["emp_not_found"]</MudText>
+            <MudText Typo="Typo.body2" Class="employees-empty-subtitle">
+                @L["emp_empty_hint"]
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="employee-grid-modern">
+            @foreach (var u in FilteredUsers)
+            {
+                <MudPaper Class="employee-card-modern" Elevation="0">
+                    <div class="employee-card-modern__top">
+                        <div class="employee-avatar-modern" style="background:@GetAvatarColor(u.UserName)">
+                            @u.UserName[0].ToString().ToUpper()
+                        </div>
+
+                        <div class="employee-header-main">
+                            <MudText Typo="Typo.subtitle1" Class="employee-name-modern">
+                                @u.UserName
+                            </MudText>
+
+                            @if (u.Position is not null)
+                            {
+                                <MudText Typo="Typo.body2" Class="employee-position-modern">
+                                    @u.Position
+                                </MudText>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="employee-card-modern__body">
+                        @if (u.DepartmentName is not null)
+                        {
+                            <div class="employee-meta-item">
+                                <MudIcon Icon="@Icons.Material.Filled.Business" Size="Size.Small" />
+                                <span>@u.DepartmentName</span>
+                            </div>
+                        }
+
+                        @if (u.Phone is not null)
+                        {
+                            <div class="employee-meta-item">
+                                <MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" />
+                                <span>@u.Phone</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="employee-card-modern__footer">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@GetRoleColor(u.Role)"
+                                 Variant="Variant.Outlined">
+                            @GetRoleLabel(u.Role)
+                        </MudChip>
+
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(u.IsActive ? Color.Success : Color.Default)"
+                                 Variant="Variant.Outlined">
+                            @(u.IsActive ? L["emp_active"] : L["emp_inactive"])
+                        </MudChip>
+                    </div>
+                </MudPaper>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<UserDto> _users = [];
+    private List<Department> _departments = [];
+    private bool _loading = true;
+    private string _search = "";
+    private Guid? _filterDeptId;
+
+    private IEnumerable<UserDto> FilteredUsers => _users.Where(u =>
+        (string.IsNullOrWhiteSpace(_search) || u.UserName.Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
+        (!_filterDeptId.HasValue || u.DepartmentId == _filterDeptId));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            (_users, _departments) = (await EmployeeSvc.GetAllAsync(), await EmployeeSvc.GetDepartmentsAsync());
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetAvatarColor(string name)
+    {
+        var colors = new[] { "#5c6bc0", "#26a69a", "#ef5350", "#ab47bc", "#42a5f5", "#66bb6a", "#ffa726" };
+        return colors[Math.Abs(name.GetHashCode()) % colors.Length];
+    }
+
+    private Color GetRoleColor(SystemRole r) => r switch
+    {
+        SystemRole.Admin => Color.Error,
+        SystemRole.Manager => Color.Warning,
+        _ => Color.Default
+    };
+
+    private string GetRoleLabel(SystemRole r) => r switch
+    {
+        SystemRole.Admin => L["role_admin"],
+        SystemRole.Manager => L["role_manager"],
+        SystemRole.Employee => L["role_employee"],
+        _ => L["role_viewer"]
+    };
+}
