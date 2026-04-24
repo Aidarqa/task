@@ -959,15 +959,17 @@ select:-webkit-autofill {
         /* ══════════════════════════════════════════════════════════
    Dashboard
    ══════════════════════════════════════════════════════════ */
-        .dashboard-page {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            padding: 20px;
-            min-height: 100%;
-            background: var(--mud-palette-background);
-            color: var(--mud-palette-text-primary);
-        }
+.dashboard-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+    padding: 20px;
+    height: calc(100vh - 48px);
+    min-height: 100%;
+    background: var(--mud-palette-background);
+    color: var(--mud-palette-text-primary);
+}
 
         .dashboard-hero {
             padding: 24px 26px;
@@ -1078,18 +1080,26 @@ select:-webkit-autofill {
             font-size: .95rem;
         }
 
-        .dashboard-content-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
-            gap: 16px;
-        }
+.dashboard-content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
 
-        .dashboard-card-modern {
-            padding: 18px;
-            border-radius: 24px;
-            background: var(--mud-palette-surface);
-            border: 1px solid var(--mud-palette-divider);
-        }
+.dashboard-card-modern {
+    padding: 18px;
+    border-radius: 24px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+}
 
         .dashboard-card-header-modern {
             display: flex;
@@ -1104,12 +1114,15 @@ select:-webkit-autofill {
             padding: 14px 4px;
         }
 
-        .dashboard-task-list-modern,
-        .dashboard-event-list-modern {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+.dashboard-task-list-modern,
+.dashboard-event-list-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+}
 
         .dashboard-task-row-modern {
             display: flex;
@@ -1126,7 +1139,6 @@ select:-webkit-autofill {
 
             .dashboard-task-row-modern:hover {
                 border-color: var(--mud-palette-primary);
-                box-shadow: var(--mud-elevation-2);
             }
 
         .dashboard-task-row-left,
