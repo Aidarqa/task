@@ -47,7 +47,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .Include(t => t.SubTasks).Include(t => t.Comments).Include(t => t.Checklist)
             .Where(t => t.ParentTaskId == null && (t.AssigneeId == CurrentUserId || t.AuthorId == CurrentUserId))
             .OrderByDescending(t => t.UpdatedAt)
-            .Take(5)
+            .Take(15)
             .ToListAsync();
 
         var todayEvents = await db.CalendarEvents
