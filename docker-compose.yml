@@ -1,0 +1,32 @@
+services:
+  # Наш уже рабочий Бэкенд
+  task-manager-api:
+    build:
+      context: .
+      dockerfile: ./src/TrelloClone.Api/Dockerfile
+    container_name: task-manager-api
+    restart: always
+    ports:
+      - "5000:8080"
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    networks:
+      - isc-network
+
+  # Наш новый Фронтенд
+  task-manager-client:
+    build:
+      context: .
+      dockerfile: ./src/TrelloClone.Client/Dockerfile
+    container_name: task-manager-client
+    restart: always
+    ports:
+      - "80:80"   # Открываем стандартный веб-порт HTTP
+    networks:
+      - isc-network
+
+networks:
+  isc-network:
+    driver: bridge
