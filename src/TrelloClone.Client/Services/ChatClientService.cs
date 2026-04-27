@@ -46,6 +46,16 @@ public class ChatClientService : IAsyncDisposable
                 .Build();
 
             _hub.On<NewMessageEvent>("NewMessage", evt => OnNewMessage?.Invoke(NormalizeEvent(evt)));
+            _hub.Reconnected += async _ =>
+            {
+                try
+                {
+                    if (_currentChatId.HasValue)
+                        await _hub.InvokeAsync("JoinChat", _currentChatId.Value.ToString());
+                }
+                catch { }
+            };
+
             await _hub.StartAsync();
         }
 

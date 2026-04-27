@@ -356,6 +356,7 @@
     private ElementReference _messagesContainer;
     private string _currentUserId = "";
     private bool _shouldScrollToBottom;
+    private readonly HashSet<Guid> _handledChatNotificationIds = [];
 
     private IEnumerable<ChatSummaryDto> FilteredChats => string.IsNullOrWhiteSpace(_search)
         ? _chats
@@ -453,6 +454,7 @@
     private void OnChatNotificationReceived(NotificationDto notif)
     {
         if (notif.NotificationType != NotificationType.Chat) return;
+        if (!_handledChatNotificationIds.Add(notif.Id)) return;
         if (notif.RelatedEntityId is null) return;
         if (!Guid.TryParse(notif.RelatedEntityId, out var chatId)) return;
         if (chatId == _activeChatId)
@@ -473,7 +475,20 @@
             var c = _chats[idx];
             _chats[idx] = c with { LastMessage = lastMessage, UnreadCount = c.UnreadCount + 1 };
             _ = InvokeAsync(StateHasChanged);
+            return;
         }
+
+        _ = ReloadChatsAsync();
+    }
+
+    private async Task ReloadChatsAsync()
+    {
+        try
+        {
+            _chats = await ChatSvc.GetChatsAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     private async Task SendMessage()

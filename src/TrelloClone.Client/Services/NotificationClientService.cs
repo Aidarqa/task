@@ -1,5 +1,4 @@
 using Blazored.LocalStorage;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
 using System.Net.Http.Json;
 using TrelloClone.Shared.Models;
@@ -10,7 +9,6 @@ public class NotificationClientService : IAsyncDisposable
 {
     private readonly HttpClient _http;
     private readonly ILocalStorageService _localStorage;
-    private readonly NavigationManager _nav;
     private HubConnection? _hub;
 
     public event Action<NotificationDto>? OnNotification;
@@ -19,11 +17,10 @@ public class NotificationClientService : IAsyncDisposable
 
     public HashSet<string> OnlineUserIds { get; } = [];
 
-    public NotificationClientService(HttpClient http, ILocalStorageService localStorage, NavigationManager nav)
+    public NotificationClientService(HttpClient http, ILocalStorageService localStorage)
     {
         _http = http;
         _localStorage = localStorage;
-        _nav = nav;
     }
 
     public async Task ConnectAsync()
@@ -35,12 +32,13 @@ public class NotificationClientService : IAsyncDisposable
         var token = await _localStorage.GetItemAsStringAsync("authToken");
         token = token?.Trim('"');
 
-        var apiBase = _nav.BaseUri.Contains("localhost:5002")
-            ? "https://localhost:5001"
-            : _nav.BaseUri.TrimEnd('/');
+        var apiBase = _http.BaseAddress!.ToString().TrimEnd('/');
 
         _hub = new HubConnectionBuilder()
-            .WithUrl($"{apiBase}/hubs/notifications?access_token={token}")
+            .WithUrl($"{apiBase}/hubs/notifications", options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult(token);
+            })
             .WithAutomaticReconnect()
             .Build();
 
