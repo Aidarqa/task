@@ -135,14 +135,11 @@
                                                    OnClick="@(() => MarkReadAsync(notif.Id))" />
                                 }
 
-                                @if (notif.SenderUserId == _currentUserId)
-                                {
-                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                                   Size="Size.Small"
-                                                   Color="Color.Error"
-                                                   title="@L["notif_delete"]"
-                                                   OnClick="@(() => DeleteAsync(notif.Id))" />
-                                }
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               title="@L["notif_delete"]"
+                                               OnClick="@(() => DeleteAsync(notif.Id))" />
                             </div>
                         </MudPaper>
                     }

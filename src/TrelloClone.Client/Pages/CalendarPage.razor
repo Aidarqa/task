@@ -145,6 +145,7 @@
                     <MudDatePicker @bind-Date="_newStart"
                                    Label="@L["field_start"]"
                                    Variant="Variant.Outlined"
+                                   MinDate="@(_editingEventId.HasValue ? (DateTime?)null : KyrgyzstanTime.Today)"
                                    Class="mb-2" />
                     <TimeInput @bind-Time="_newStartTime"
                                Label="@L["cal_start_time"]"
@@ -155,6 +156,7 @@
                     <MudDatePicker @bind-Date="_newEnd"
                                    Label="@L["field_end"]"
                                    Variant="Variant.Outlined"
+                                   MinDate="@(_editingEventId.HasValue ? (DateTime?)null : KyrgyzstanTime.Today)"
                                    Class="mb-2" />
                     <TimeInput @bind-Time="_newEndTime"
                                Label="@L["cal_end_time"]"
@@ -447,6 +449,12 @@
 
     private void OpenCreateForDate(DateTime date)
     {
+        if (date.Date < KyrgyzstanTime.Today)
+        {
+            Snackbar.Add(L["cal_past_date"], Severity.Warning);
+            return;
+        }
+
         _editingEventId = null;
         _selectedEvent = null;
         _detailOpen = false;
@@ -543,6 +551,12 @@
         {
             start = startDate.Date + (_newStartTime ?? TimeSpan.FromHours(9));
             end = endDate.Date + (_newEndTime ?? TimeSpan.FromHours(10));
+        }
+
+        if (!_editingEventId.HasValue && start < KyrgyzstanTime.Now)
+        {
+            Snackbar.Add(L["cal_past_date"], Severity.Warning);
+            return;
         }
 
         if (end <= start)

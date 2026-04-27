@@ -230,6 +230,7 @@ public class LocalizationService
         ["cal_end_time"] = new() { ["ru"] = "Время окончания", ["ky"] = "Аяктоо убактысы" },
         ["cal_edit"] = new() { ["ru"] = "Редактировать", ["ky"] = "Түзөтүү" },
         ["cal_end_after_start"] = new() { ["ru"] = "Время окончания должно быть позже времени начала.", ["ky"] = "Аяктоо убактысы башталуу убактысынан кийин болушу керек." },
+        ["cal_past_date"] = new() { ["ru"] = "Нельзя создать событие задним числом.", ["ky"] = "Өткөн күнгө иш-чара түзүүгө болбойт." },
         ["cal_updated"] = new() { ["ru"] = "Событие обновлено", ["ky"] = "Иш-чара жаңыртылды" },
 
         // Bookings
@@ -277,6 +278,12 @@ public class LocalizationService
         ["chat_select"] = new() { ["ru"] = "Выберите чат", ["ky"] = "Чатты тандаңыз" },
         ["chat_participants"] = new() { ["ru"] = "участников", ["ky"] = "катышуучу" },
         ["chat_placeholder"] = new() { ["ru"] = "Написать сообщение...", ["ky"] = "Билдирүү жазуу..." },
+        ["chat_emoji"] = new() { ["ru"] = "Смайлы", ["ky"] = "Смайлдар" },
+        ["chat_emoji_smileys"] = new() { ["ru"] = "Смайлы", ["ky"] = "Смайлдар" },
+        ["chat_emoji_gestures"] = new() { ["ru"] = "Жесты", ["ky"] = "Жесттер" },
+        ["chat_emoji_hearts"] = new() { ["ru"] = "Сердца", ["ky"] = "Жүрөктөр" },
+        ["chat_emoji_nature"] = new() { ["ru"] = "Природа", ["ky"] = "Жаратылыш" },
+        ["chat_emoji_objects"] = new() { ["ru"] = "Разное", ["ky"] = "Ар кандай" },
         ["chat_type_direct"] = new() { ["ru"] = "Личный", ["ky"] = "Жеке" },
         ["chat_type_group"] = new() { ["ru"] = "Группа", ["ky"] = "Топ" },
         ["chat_group_name"] = new() { ["ru"] = "Название группы", ["ky"] = "Топтун аты" },

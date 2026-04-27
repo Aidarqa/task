@@ -251,7 +251,23 @@
                         }
                     </div>
 
-                    <div class="message-input-bar-modern">
+                    <div class="message-input-bar-modern" style="position:relative;">
+                        @if (_emojiOpen)
+                        {
+                            <div class="emoji-picker-panel" @onclick:stopPropagation="true">
+                                @foreach (var (label, emojis) in EmojiCategories)
+                                {
+                                    <div class="emoji-category-label">@label</div>
+                                    <div class="emoji-grid">
+                                        @foreach (var e in emojis)
+                                        {
+                                            <button type="button" class="emoji-btn" @onclick="@(() => InsertEmoji(e))">@e</button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+
                         <MudTextField T="string"
                                       Value="_newMessage"
                                       ValueChanged="OnMessageInputChanged"
@@ -262,6 +278,12 @@
                                       Immediate="true"
                                       Style="flex:1"
                                       OnKeyDown="HandleMessageKeyDown" />
+
+                        <MudIconButton Icon="@Icons.Material.Outlined.EmojiEmotions"
+                                       title="@L["chat_emoji"]"
+                                       OnClick="@(() => _emojiOpen = !_emojiOpen)"
+                                       Color="@(_emojiOpen ? Color.Primary : Color.Default)"
+                                       Size="Size.Medium" />
 
                         <InputFile id="chat-file-upload"
                                    class="file-picker-input"
@@ -360,6 +382,7 @@
     private string _search = "";
     private string _newMessage = "";
     private bool _sendingMessage;
+    private bool _emojiOpen;
     private bool _loadingMessages;
     private bool _newChatOpen;
     private string _newChatType = "direct";
@@ -547,9 +570,37 @@
         catch { }
     }
 
+    private void InsertEmoji(string emoji)
+    {
+        _newMessage += emoji;
+        _emojiOpen = false;
+    }
+
+    private (string Label, string[] Emojis)[] EmojiCategories => [
+        (L["chat_emoji_smileys"], ["😀","😁","😂","🤣","😃","😄","😅","😆","😊","😋",
+            "😎","😍","🥰","😘","🙂","🤗","🤩","🤔","😐","😑","😶","🙄","😏","😒",
+            "😔","😟","😕","🙁","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡",
+            "🤬","🤯","😳","😱","😨","😰","🤭","🤫","🤥","😬","😯","😮","😲","🥱",
+            "😴","😵","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","😈","👿","💩",
+            "👻","💀","☠️","👽","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"]),
+        (L["chat_emoji_gestures"], ["👍","👎","👌","🤌","✌️","🤞","🖖","🤙","💪","🙏",
+            "👏","🤝","👋","🤚","🖐️","✋","🖕","🤜","🤛","☝️","👆","👇","👈","👉",
+            "🫶","🫂","💅","🤳","🫵","🤲","🖐","🙌","👐"]),
+        (L["chat_emoji_hearts"], ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔",
+            "❣️","💕","💞","💓","💗","💖","💘","💝","💟","❤️‍🔥","❤️‍🩹","💯","✨","🌟","⭐",
+            "🔥","💫","🎉","🎊","🎈","🎁","🎂","🏆","🥇","🎯"]),
+        (L["chat_emoji_nature"], ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯",
+            "🦁","🐮","🐷","🐸","🐵","🐔","🐧","🐦","🦆","🦉","🦋","🐛","🐝","🌸",
+            "🌹","🌺","🌻","🌼","🌷","🍀","🌿","🍃","🌴","🌵","🌊","⭐","🌙","☀️","⛅"]),
+        (L["chat_emoji_objects"], ["🍕","🍔","🍟","🌮","🌯","🍜","🍣","🍩","🍪","🎂",
+            "☕","🍵","🧋","🍺","🍻","🥂","🍾","📱","💻","🖥️","⌨️","🖱️","📷","🎵",
+            "🎶","🎮","🎲","🎸","🎤","📚","✏️","📌","🔑","💡","🔔","📢","🚀","✈️","🚗"])
+    ];
+
     private async Task SendMessage()
     {
         if (_sendingMessage || _activeChatId is null || string.IsNullOrWhiteSpace(_newMessage)) return;
+        _emojiOpen = false;
         _sendingMessage = true;
         var text = _newMessage;
         _newMessage = "";

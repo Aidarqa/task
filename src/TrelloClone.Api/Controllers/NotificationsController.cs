@@ -75,13 +75,12 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    // DELETE /api/notifications/{id}  — allowed only by the sender
+    // DELETE /api/notifications/{id}
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var n = await db.Notifications.FindAsync(id);
         if (n is null || n.UserId != CurrentUserId) return NotFound();
-        if (n.SenderUserId != CurrentUserId) return Forbid();
         db.Notifications.Remove(n);
         await db.SaveChangesAsync();
         return NoContent();
