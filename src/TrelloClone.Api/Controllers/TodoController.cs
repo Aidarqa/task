@@ -135,7 +135,8 @@ public class TodoController(AppDbContext db, INotificationService notif) : Contr
                 $"{CurrentUserName} отметил(а) задачу \"{task.Title}\" выполненной в ToDo.",
                 NotificationType.Task,
                 $"/tasks/{task.Id}",
-                task.Id.ToString());
+                task.Id.ToString(),
+                senderUserId: CurrentUserId);
         }
     }
 }

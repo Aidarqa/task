@@ -521,6 +521,7 @@ select:-webkit-autofill {
 }
 
 .board-card-modern:hover {
+  box-shadow: var(--mud-elevation-8);
   border-color: color-mix(in srgb, var(--board-color) 50%, white);
 }
 
@@ -1172,6 +1173,7 @@ select:-webkit-autofill {
 }
 
 .stat-card-modern:hover {
+  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -1737,6 +1739,7 @@ select:-webkit-autofill {
 
 .task-card-modern:hover,
 .task-card-board-modern:hover {
+  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2039,26 +2042,24 @@ select:-webkit-autofill {
 }
 
 .todo-list-card-modern {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0;
-  width: 372px;
-  min-width: 372px;
-  max-width: 372px;
-  height: auto;
-  border-radius: 26px;
-  background: var(--mud-palette-surface);
-  border: 1px solid var(--mud-palette-divider);
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    border-color 0.18s ease;
-  overflow: hidden;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    width: 500px;
+    min-width: 500px;
+    max-width: 500px;
+    height: auto;
+    border-radius: 26px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
 }
 
 .todo-list-card-modern:hover {
+  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2418,6 +2419,7 @@ select:-webkit-autofill {
 }
 
 .calendar-cell:hover {
+  box-shadow: var(--mud-elevation-4);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2829,6 +2831,7 @@ select:-webkit-autofill {
 }
 
 .resource-card:hover {
+  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -3533,6 +3536,7 @@ select:-webkit-autofill {
 }
 
 .employee-card-modern:hover {
+  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 

@@ -66,7 +66,9 @@
                 {
                     var dayEvents = _events.Where(e => EventIntersectsDay(e, cell.Date)).ToList();
 
-                    <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell--other") @(cell.Date == KyrgyzstanTime.Today ? "calendar-cell--today" : "")">
+                    <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell--other") @(cell.Date == KyrgyzstanTime.Today ? "calendar-cell--today" : "")"
+                         title="@L["cal_dblclick_hint"]"
+                         @ondblclick="@(() => OpenCreateForDate(cell.Date))">
                         <div class="calendar-cell-top">
                             <div class="calendar-cell-num">@cell.Date.Day</div>
                             @if (dayEvents.Count > 0)
@@ -83,7 +85,8 @@
                                 <button type="button"
                                         class="calendar-event-pill"
                                         style="border-left-color:@ev.Color"
-                                        @onclick="@(() => ShowEventDetail(ev))">
+                                        @onclick="@(() => ShowEventDetail(ev))"
+                                        @ondblclick:stopPropagation="true">
                                     <span class="calendar-event-pill__time">
                                         @(ev.IsAllDay ? L["cal_all_day"] : KyrgyzstanTime.FormatDateTime(ev.StartTime))
                                     </span>
@@ -94,7 +97,8 @@
                             @if (dayEvents.Count > 3)
                             {
                                 <button type="button" class="calendar-event-more"
-                                        @onclick="@(() => ShowDayOverflow(cell.Date, dayEvents))">
+                                        @onclick="@(() => ShowDayOverflow(cell.Date, dayEvents))"
+                                        @ondblclick:stopPropagation="true">
                                     +@(dayEvents.Count - 3) @L["cal_more"]
                                 </button>
                             }
@@ -158,7 +162,7 @@
                 </MudItem>
             </MudGrid>
 
-            <MudCheckBox @bind-Value="_newAllDay"
+            <MudCheckBox @bind-Value="_newAllDay" Color="Color.Primary"
                          Label="@L["cal_all_day"]"
                          Class="mt-3" />
 
@@ -433,6 +437,25 @@
         _newType = CalendarEventType.Meeting;
         _newStart = KyrgyzstanTime.Today;
         _newEnd = KyrgyzstanTime.Today;
+        _newStartTime = TimeSpan.FromHours(9);
+        _newEndTime = TimeSpan.FromHours(10);
+        _newAllDay = false;
+        _newParticipantIds = [];
+        _newResourceId = null;
+        _createOpen = true;
+    }
+
+    private void OpenCreateForDate(DateTime date)
+    {
+        _editingEventId = null;
+        _selectedEvent = null;
+        _detailOpen = false;
+        _dayOverflowOpen = false;
+        _newTitle = "";
+        _newDesc = null;
+        _newType = CalendarEventType.Meeting;
+        _newStart = date;
+        _newEnd = date;
         _newStartTime = TimeSpan.FromHours(9);
         _newEndTime = TimeSpan.FromHours(10);
         _newAllDay = false;

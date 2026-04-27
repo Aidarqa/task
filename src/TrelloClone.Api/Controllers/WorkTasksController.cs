@@ -115,7 +115,8 @@ public class WorkTasksController(
                 $"Задача \"{task.Title}\" назначена пользователем {CurrentUserName}.",
                 NotificationType.Task,
                 $"/tasks/{task.Id}",
-                task.Id.ToString());
+                task.Id.ToString(),
+                senderUserId: CurrentUserId);
         }
 
         return Ok(ToSummary(task));
@@ -165,7 +166,8 @@ public class WorkTasksController(
                 $"Задача \"{task.Title}\" была обновлена и назначена вам.",
                 NotificationType.Task,
                 $"/tasks/{task.Id}",
-                task.Id.ToString());
+                task.Id.ToString(),
+                senderUserId: CurrentUserId);
         }
 
         return Ok(ToSummary(task));
@@ -199,7 +201,8 @@ public class WorkTasksController(
                     $"Исполнитель отметил задачу \"{task.Title}\" как выполненную.",
                     NotificationType.Task,
                     $"/tasks/{task.Id}",
-                    task.Id.ToString());
+                    task.Id.ToString(),
+                    senderUserId: CurrentUserId);
             }
             else
             {
@@ -209,7 +212,8 @@ public class WorkTasksController(
                     $"По задаче \"{task.Title}\" установлен статус {req.Status}.",
                     NotificationType.Task,
                     $"/tasks/{task.Id}",
-                    task.Id.ToString());
+                    task.Id.ToString(),
+                    senderUserId: CurrentUserId);
             }
         }
 
@@ -238,7 +242,8 @@ public class WorkTasksController(
                 $"{CurrentUserName} принял(а) задачу \"{task.Title}\" в работу.",
                 NotificationType.Task,
                 $"/tasks/{task.Id}",
-                task.Id.ToString());
+                task.Id.ToString(),
+                senderUserId: CurrentUserId);
         }
 
         return Ok(ToSummary(task));
@@ -348,7 +353,8 @@ public class WorkTasksController(
             $"\"{task.Title}\": {preview}",
             NotificationType.Task,
             $"/tasks/{task.Id}",
-            task.Id.ToString());
+            task.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         return Ok(comment);
     }
@@ -481,7 +487,8 @@ public class WorkTasksController(
             $"{CurrentUserName} добавил(а) {created.Count} файл(ов) к задаче \"{task.Title}\".",
             NotificationType.Task,
             $"/tasks/{task.Id}",
-            task.Id.ToString());
+            task.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         return Ok(created.Select(ToAttachmentDto));
     }

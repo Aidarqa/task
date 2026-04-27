@@ -56,7 +56,8 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
 
         await notif.SendAsync(CurrentUserId, "Проект создан",
             $"Проект «{p.Name}» успешно создан",
-            NotificationType.System, "/projects", p.Id.ToString());
+            NotificationType.System, "/projects", p.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         return Ok(p);
     }
@@ -82,7 +83,8 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
         if (p.Status != prevStatus && p.OwnerId != CurrentUserId)
             await notif.SendAsync(p.OwnerId, "Статус проекта изменён",
                 $"«{p.Name}» → {p.Status}",
-                NotificationType.System, "/projects", p.Id.ToString());
+                NotificationType.System, "/projects", p.Id.ToString(),
+                senderUserId: CurrentUserId);
 
         return Ok(p);
     }

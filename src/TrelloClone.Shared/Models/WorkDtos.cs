@@ -170,7 +170,8 @@ public record ChatMessageDto(
 // ── Notification DTOs ─────────────────────────────────────
 public record NotificationDto(
     Guid Id, string Title, string? Body, NotificationType NotificationType,
-    bool IsRead, DateTime CreatedAt, string? Link, string? RelatedEntityId = null
+    bool IsRead, DateTime CreatedAt, string? Link, string? RelatedEntityId = null,
+    string? SenderUserId = null
 );
 
 // ── Project DTOs ──────────────────────────────────────────

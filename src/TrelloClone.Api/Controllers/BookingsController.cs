@@ -124,7 +124,8 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
             $"{resourceName} — {startLocal:dd.MM.yyyy HH:mm}–{endLocal:dd.MM.yyyy HH:mm}",
             NotificationType.Booking,
             "/bookings",
-            booking.Id.ToString());
+            booking.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         return Ok(ToDto(booking));
     }
@@ -154,7 +155,8 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
             $"{resourceName} — {startLocalCnl:dd.MM.yyyy HH:mm}–{endLocalCnl:dd.MM.yyyy HH:mm}",
             NotificationType.Booking,
             "/bookings",
-            booking.Id.ToString());
+            booking.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         return NoContent();
     }

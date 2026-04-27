@@ -21,7 +21,8 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         if (type is not null && Enum.TryParse<NotificationType>(type, out var t))
             q = q.Where(n => n.NotificationType == t);
         var list = await q.OrderByDescending(n => n.CreatedAt).Take(100).ToListAsync();
-        return Ok(list.Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.NotificationType, n.IsRead, n.CreatedAt, n.Link, n.RelatedEntityId)));
+        return Ok(list.Select(n => new NotificationDto(n.Id, n.Title, n.Body, n.NotificationType,
+            n.IsRead, n.CreatedAt, n.Link, n.RelatedEntityId, n.SenderUserId)));
     }
 
     // GET /api/notifications/count
@@ -74,12 +75,13 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    // DELETE /api/notifications/{id}
+    // DELETE /api/notifications/{id}  — allowed only by the sender
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var n = await db.Notifications.FindAsync(id);
         if (n is null || n.UserId != CurrentUserId) return NotFound();
+        if (n.SenderUserId != CurrentUserId) return Forbid();
         db.Notifications.Remove(n);
         await db.SaveChangesAsync();
         return NoContent();

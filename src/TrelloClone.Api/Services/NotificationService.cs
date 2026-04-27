@@ -8,24 +8,27 @@ namespace TrelloClone.Api.Services;
 public class NotificationService(AppDbContext db, IHubContext<NotificationHub> hub) : INotificationService
 {
     public async Task SendAsync(string userId, string title, string? body, NotificationType type,
-        string? link = null, string? relatedEntityId = null)
+        string? link = null, string? relatedEntityId = null, string? senderUserId = null)
     {
         var n = new Notification
         {
             UserId = userId, Title = title, Body = body,
-            NotificationType = type, Link = link, RelatedEntityId = relatedEntityId
+            NotificationType = type, Link = link, RelatedEntityId = relatedEntityId,
+            SenderUserId = senderUserId
         };
         db.Notifications.Add(n);
         await db.SaveChangesAsync();
 
-        var dto = new NotificationDto(n.Id, n.Title, n.Body, n.NotificationType, false, n.CreatedAt, n.Link, n.RelatedEntityId);
+        var dto = new NotificationDto(n.Id, n.Title, n.Body, n.NotificationType, false,
+            n.CreatedAt, n.Link, n.RelatedEntityId, n.SenderUserId);
         await hub.Clients.Group(userId).SendAsync("Notification", new NotificationEvent(dto));
     }
 
     public async Task SendToManyAsync(IEnumerable<string> userIds, string title, string? body,
-        NotificationType type, string? link = null, string? relatedEntityId = null)
+        NotificationType type, string? link = null, string? relatedEntityId = null,
+        string? senderUserId = null)
     {
         foreach (var uid in userIds.Distinct())
-            await SendAsync(uid, title, body, type, link, relatedEntityId);
+            await SendAsync(uid, title, body, type, link, relatedEntityId, senderUserId);
     }
 }

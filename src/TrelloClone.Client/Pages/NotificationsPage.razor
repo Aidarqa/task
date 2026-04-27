@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inherits LocalizedBase
 @inject NotificationClientService NotifSvc
+@inject IAuthService AuthSvc
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @implements IDisposable
@@ -134,11 +135,14 @@
                                                    OnClick="@(() => MarkReadAsync(notif.Id))" />
                                 }
 
-                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                               Size="Size.Small"
-                                               Color="Color.Error"
-                                               title="@L["notif_delete"]"
-                                               OnClick="@(() => DeleteAsync(notif.Id))" />
+                                @if (notif.SenderUserId == _currentUserId)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   title="@L["notif_delete"]"
+                                                   OnClick="@(() => DeleteAsync(notif.Id))" />
+                                }
                             </div>
                         </MudPaper>
                     }
@@ -164,6 +168,7 @@
 @code {
     private List<NotificationDto> _notifications = [];
     private bool _loading = true;
+    private string _currentUserId = "";
     private string _search = "";
     private bool _unreadOnly;
     private NotificationType? _typeFilter;
@@ -224,6 +229,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _currentUserId = await AuthSvc.GetUserIdAsync() ?? "";
         NotifSvc.OnNotification += OnNewNotification;
         _notifications = await NotifSvc.GetAllAsync();
         NormalizeNotificationPagination();

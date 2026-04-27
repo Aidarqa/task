@@ -98,7 +98,8 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
             $"«{ev.Title}» — {startLocal:dd.MM.yyyy HH:mm}",
             NotificationType.Event,
             "/calendar",
-            ev.Id.ToString());
+            ev.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         var resources = await db.Resources.ToDictionaryAsync(r => r.Id, r => r.Name);
         return Ok(ToDto(ev, resources));
@@ -154,7 +155,8 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
             $"«{ev.Title}» — {startLocalUpd:dd.MM.yyyy HH:mm}",
             NotificationType.Event,
             "/calendar",
-            ev.Id.ToString());
+            ev.Id.ToString(),
+            senderUserId: CurrentUserId);
 
         var resources = await db.Resources.ToDictionaryAsync(r => r.Id, r => r.Name);
         ev.Participants = newParticipants;

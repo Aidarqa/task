@@ -193,6 +193,7 @@ public class Notification
     [MaxLength(500)] public string? Body { get; set; }
     public NotificationType NotificationType { get; set; } = NotificationType.Info;
     public string UserId { get; set; } = string.Empty;
+    public string? SenderUserId { get; set; }
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     [MaxLength(500)] public string? Link { get; set; }

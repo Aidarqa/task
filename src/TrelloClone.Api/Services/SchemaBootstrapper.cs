@@ -48,6 +48,9 @@ public static class SchemaBootstrapper
                 CONSTRAINT "FK_ProjectMembers_Projects_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Projects" ("Id") ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_ProjectMembers_ProjectId_UserId" ON "ProjectMembers" ("ProjectId", "UserId");
+
+            ALTER TABLE "Notifications"
+                ADD COLUMN IF NOT EXISTS "SenderUserId" text NULL;
             """,
             cancellationToken);
     }

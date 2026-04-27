@@ -131,7 +131,7 @@
                                 @L["emp_write_message"]
                             </MudButton>
                         }
-                        @if (u.Id == _currentUserId)
+                        @* @if (u.Id == _currentUserId)
                         {
                             <MudButton Variant="Variant.Outlined"
                                        Color="Color.Error"
@@ -141,7 +141,7 @@
                                        OnClick="ConfirmDeleteSelfAsync">
                                 @L["emp_delete_self"]
                             </MudButton>
-                        }
+                        } *@
                     </div>
                 </MudPaper>
             }
