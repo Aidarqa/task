@@ -35,12 +35,13 @@ public class ChatClientService : IAsyncDisposable
             var token = await _localStorage.GetItemAsStringAsync("authToken");
             token = token?.Trim('"');
 
-            var apiBase = _nav.BaseUri.Contains("localhost:5002")
-                ? "https://localhost:5001"
-                : _nav.BaseUri.TrimEnd('/');
+            var apiBase = _http.BaseAddress!.ToString().TrimEnd('/');
 
             _hub = new HubConnectionBuilder()
-                .WithUrl($"{apiBase}/hubs/chat?access_token={token}")
+                .WithUrl($"{apiBase}/hubs/chat", options =>
+                {
+                    options.AccessTokenProvider = () => Task.FromResult(token);
+                })
                 .WithAutomaticReconnect()
                 .Build();
 
