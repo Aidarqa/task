@@ -100,9 +100,8 @@
                     <div class="booking-list">
                         @foreach (var booking in PagedBookings)
                         {
-                            <MudPaper Class="@($"booking-card {(booking.Status == BookingStatus.Cancelled ? "booking-card--cancelled" : "")}")"
-                                      Elevation="@(booking.Id == _highlightedBookingId ? 4 : 0)"
-                                      Style="@(booking.Id == _highlightedBookingId ? "outline: 2.5px solid var(--mud-palette-primary); outline-offset: 2px;" : "")">
+                            <MudPaper Class="@GetBookingCardClass(booking)"
+                                      Elevation="0">
                                 <div class="booking-card__content">
                                     <div class="booking-card__left">
                                         <div class="booking-icon-wrap">
@@ -390,6 +389,19 @@
     private int BookingTotalPages => Math.Max(1, (int)Math.Ceiling(_bookings.Count / (double)BookingPageSize));
     private int BookingPaginationStart => _bookings.Count == 0 ? 0 : ((_bookingPage - 1) * BookingPageSize) + 1;
     private int BookingPaginationEnd => Math.Min(_bookingPage * BookingPageSize, _bookings.Count);
+
+    private string GetBookingCardClass(BookingDto booking)
+    {
+        var classes = new List<string> { "booking-card" };
+
+        if (booking.Status == BookingStatus.Cancelled)
+            classes.Add("booking-card--cancelled");
+
+        if (booking.Id == _highlightedBookingId)
+            classes.Add("booking-card--highlighted");
+
+        return string.Join(" ", classes);
+    }
 
     protected override async Task OnInitializedAsync()
     {

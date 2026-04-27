@@ -19,7 +19,15 @@
     <MudPaper Class="tasks-toolbar" Elevation="0">
         <div class="tasks-toolbar__left">
             <div>
-                <MudText Typo="Typo.h4" Class="tasks-page-title">@L["tasks_title"]</MudText>
+                <div class="tasks-title-row">
+                    <MudText Typo="Typo.h4" Class="tasks-page-title">@L["tasks_title"]</MudText>
+                    <MudTooltip Text="@GetTaskContextText()">
+                        <MudIconButton Icon="@Icons.Material.Filled.Info"
+                                       Size="Size.Small"
+                                       Color="@GetTaskContextIconColor()"
+                                       Class="tasks-context-icon" />
+                    </MudTooltip>
+                </div>
                 <MudText Typo="Typo.body2" Class="tasks-page-subtitle">
                     @L["tasks_subtitle"]
                 </MudText>
@@ -60,10 +68,10 @@
 
         <div class="tasks-toolbar__right">
             <MudToggleGroup T="string" @bind-Value="_view" Size="Size.Small" Class="tasks-view-toggle">
-                <MudToggleItem Value="@("list")">
+                <MudToggleItem Value="@("list")" title="Список">
                     <MudIcon Icon="@Icons.Material.Filled.ViewList" />
                 </MudToggleItem>
-                <MudToggleItem Value="@("board")">
+                <MudToggleItem Value="@("board")" title="Доска">
                     <MudIcon Icon="@Icons.Material.Filled.ViewColumn" />
                 </MudToggleItem>
             </MudToggleGroup>
@@ -78,7 +86,16 @@
     </MudPaper>
 
     <MudPaper Class="tasks-filter-panel" Elevation="0">
-        <MudStack AlignItems="AlignItems.Center" Row Justify="Justify.FlexEnd">
+        <MudStack AlignItems="AlignItems.Center" Row Justify="Justify.FlexEnd" Class="tasks-filter-row">
+                <MudTextField T="string"
+                              @bind-Value="_searchText"
+                              Label="Поиск"
+                              Margin="Margin.Dense"
+                              Variant="Variant.Outlined"
+                              Clearable="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search" />
+
                 <MudSelect T="string"
                            @bind-Value="_projectFilterValue"
                            Label="@L["tasks_filter_project"]"
@@ -114,25 +131,6 @@
                 </MudButton>
         </MudStack>
     </MudPaper>
-
-    @* @if (_currentProject is not null)
-    {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-            @string.Format(L["tasks_project_context"], _currentProject.Name)
-        </MudAlert>
-    } *@
-    @* else if (IsWithoutProjectMode)
-    {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-            @L["tasks_without_project_context"]
-        </MudAlert>
-    }
-    else if (IsAllTasksMode)
-    {
-        <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true">
-            @L["tasks_all_tasks_context"]
-        </MudAlert>
-    } *@
 
     <MudGrid Class="tasks-content-grid">
         <MudItem xs="12" lg="7" Class="tasks-column">
@@ -184,6 +182,30 @@
                                                                  Variant="Variant.Outlined"
                                                                  Class="task-project-chip">
                                                             @($"{L["tasks_project"]}: {projectName}")
+                                                        </MudChip>
+                                                    }
+                                                    @if (IsAssignedToMe(task))
+                                                    {
+                                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                                                            Назначено мне
+                                                        </MudChip>
+                                                    }
+                                                    @if (IsAuthoredByMe(task))
+                                                    {
+                                                        <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">
+                                                            Я автор
+                                                        </MudChip>
+                                                    }
+                                                    @if (string.IsNullOrWhiteSpace(task.AssigneeName))
+                                                    {
+                                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">
+                                                            @L["tasks_no_assignee"]
+                                                        </MudChip>
+                                                    }
+                                                    @if (IsOverdue(task))
+                                                    {
+                                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                                                            Просрочено
                                                         </MudChip>
                                                     }
                                                 </div>
@@ -244,10 +266,12 @@
 
                                                 @if (CanDelete(task))
                                                 {
-                                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                                                   Size="Size.Small"
-                                                                   Color="Color.Error"
-                                                                   OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                    <MudTooltip Text="Удалить задачу">
+                                                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                                       Size="Size.Small"
+                                                                       Color="Color.Error"
+                                                                       OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                    </MudTooltip>
                                                 }
                                             </div>
                                         </div>
@@ -261,10 +285,10 @@
                         <MudGrid>
                             @foreach (var status in Enum.GetValues<WorkTaskStatus>().Where(s => s != WorkTaskStatus.Cancelled))
                             {
-                                var columnTasks = PagedTasks.Where(t => t.Status == status).ToList();
+                                var columnTasks = BoardTasks.Where(t => t.Status == status).ToList();
 
                                 <MudItem xs="12" md="6" xl="3">
-                                    <MudPaper Class="pa-3 h-100" Elevation="0">
+                                    <MudPaper Class="pa-3 h-100 worktask-column-modern" Elevation="0">
                                         <MudStack Spacing="2">
                                             <div class="d-flex justify-space-between align-center">
                                                 <MudText Typo="Typo.h6">@GetStatusLabel(status)</MudText>
@@ -282,10 +306,33 @@
 
                                                             @if (CanDelete(task))
                                                             {
-                                                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                                                               Size="Size.Small"
-                                                                               Color="Color.Error"
-                                                                               OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                                <MudTooltip Text="Удалить задачу">
+                                                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                                                   Size="Size.Small"
+                                                                                   Color="Color.Error"
+                                                                                   OnClick="@(() => ConfirmDeleteTaskAsync(task.Id, task.Title))" />
+                                                                </MudTooltip>
+                                                            }
+                                                        </div>
+
+                                                        <div class="task-card-chips">
+                                                            @if (IsAssignedToMe(task))
+                                                            {
+                                                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                                                                    Назначено мне
+                                                                </MudChip>
+                                                            }
+                                                            @if (IsAuthoredByMe(task))
+                                                            {
+                                                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">
+                                                                    Я автор
+                                                                </MudChip>
+                                                            }
+                                                            @if (IsOverdue(task))
+                                                            {
+                                                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                                                                    Просрочено
+                                                                </MudChip>
                                                             }
                                                         </div>
 
@@ -303,6 +350,13 @@
                                                         <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(task.Priority)">
                                                             @GetPriorityLabel(task.Priority)
                                                         </MudChip>
+
+                                                        @if (task.DueDate.HasValue)
+                                                        {
+                                                            <MudText Typo="Typo.caption" Class="task-project-caption">
+                                                                @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateSmart(task.DueDate.Value))
+                                                            </MudText>
+                                                        }
                                                     </MudStack>
                                                 </MudPaper>
                                             }
@@ -314,7 +368,7 @@
                     }
                 </div>
 
-                @if (!_loading && _tasks.Count > 0 && TotalPages > 1)
+                @if (!_loading && _tasks.Count > 0 && _view == "list" && TotalPages > 1)
                 {
                     <div class="tasks-pagination-bar tasks-pagination-bar--sticky">
                         <MudText Typo="Typo.caption">
@@ -717,6 +771,7 @@
     private bool _loadingTask;
     private string _view = "list";
     private string? _filterStatus;
+    private string _searchText = string.Empty;
     private string _projectFilterValue = ProjectFilterNone;
     private bool _myOnly;
     private bool _createOpen;
@@ -747,6 +802,8 @@
     private IEnumerable<WorkTaskSummary> PagedTasks => _tasks
         .Skip((_currentPage - 1) * PageSize)
         .Take(PageSize);
+
+    private IEnumerable<WorkTaskSummary> BoardTasks => _tasks;
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_tasks.Count / (double)PageSize));
     private int PaginationStart => _tasks.Count == 0 ? 0 : ((_currentPage - 1) * PageSize) + 1;
@@ -952,7 +1009,48 @@
             if (!string.IsNullOrWhiteSpace(_filterStatus) && Enum.TryParse<WorkTaskStatus>(_filterStatus, out var parsedStatus))
                 _tasks = _tasks.Where(task => task.Status == parsedStatus).ToList();
         }
+
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            var search = _searchText.Trim();
+            _tasks = _tasks
+                .Where(task =>
+                    ContainsSearch(task.Title, search) ||
+                    ContainsSearch(task.AuthorName, search) ||
+                    ContainsSearch(task.AssigneeName, search) ||
+                    ContainsSearch(task.ProjectName, search) ||
+                    ContainsSearch(TryGetProjectName(task.ProjectId), search))
+                .ToList();
+        }
     }
+
+    private static bool ContainsSearch(string? value, string search)
+        => !string.IsNullOrWhiteSpace(value)
+           && value.Contains(search, StringComparison.OrdinalIgnoreCase);
+
+    private string GetTaskContextText()
+    {
+        if (_currentProject is not null)
+            return string.Format(L["tasks_project_context"], _currentProject.Name);
+
+        return IsAllTasksMode
+            ? L["tasks_all_tasks_context"]
+            : L["tasks_without_project_context"];
+    }
+
+    private Color GetTaskContextIconColor()
+        => IsAllTasksMode ? Color.Default : Color.Info;
+
+    private bool IsAssignedToMe(WorkTaskSummary task)
+        => task.AssigneeId == _currentUserId;
+
+    private bool IsAuthoredByMe(WorkTaskSummary task)
+        => task.AuthorId == _currentUserId;
+
+    private bool IsOverdue(WorkTaskSummary task)
+        => task.DueDate.HasValue
+           && task.DueDate.Value < KyrgyzstanTime.Now
+           && task.Status is not WorkTaskStatus.Done and not WorkTaskStatus.Cancelled;
 
     private bool CanTakeInWork(WorkTaskSummary task)
         => task.AssigneeId == _currentUserId && task.Status == WorkTaskStatus.New;

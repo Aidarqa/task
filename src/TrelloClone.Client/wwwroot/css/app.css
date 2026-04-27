@@ -1551,6 +1551,16 @@ select:-webkit-autofill {
   color: var(--mud-palette-text-primary);
 }
 
+.tasks-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tasks-context-icon {
+  opacity: 0.78;
+}
+
 .tasks-page-subtitle {
   color: var(--mud-palette-text-secondary);
   margin-top: 4px;
@@ -1587,6 +1597,23 @@ select:-webkit-autofill {
   border-radius: 20px;
   background: var(--mud-palette-surface);
   border: 1px solid var(--mud-palette-divider);
+}
+
+.tasks-filter-row {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tasks-filter-row > * {
+  min-width: 180px;
+}
+
+.tasks-scope-chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -8px;
 }
 
 .tasks-content-grid {
@@ -2719,6 +2746,11 @@ select:-webkit-autofill {
 
 .booking-card:hover {
   border-color: var(--mud-palette-primary) !important;
+}
+
+.booking-card--highlighted {
+  border-color: var(--mud-palette-primary) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mud-palette-primary) 36%, transparent);
 }
 
 .booking-card--cancelled {
