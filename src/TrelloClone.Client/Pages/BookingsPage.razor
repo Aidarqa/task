@@ -100,7 +100,9 @@
                     <div class="booking-list">
                         @foreach (var booking in PagedBookings)
                         {
-                            <MudPaper Class="@($"booking-card {(booking.Status == BookingStatus.Cancelled ? "booking-card--cancelled" : "")}")" Elevation="0">
+                            <MudPaper Class="@($"booking-card {(booking.Status == BookingStatus.Cancelled ? "booking-card--cancelled" : "")}")"
+                                      Elevation="@(booking.Id == _highlightedBookingId ? 4 : 0)"
+                                      Style="@(booking.Id == _highlightedBookingId ? "outline: 2.5px solid var(--mud-palette-primary); outline-offset: 2px;" : "")">
                                 <div class="booking-card__content">
                                     <div class="booking-card__left">
                                         <div class="booking-icon-wrap">
@@ -281,9 +283,8 @@
                                    Label="@L["book_start_date"]"
                                    Variant="Variant.Outlined"
                                    Class="mb-2" />
-                    <MudTimePicker @bind-Time="_bookStartTime"
-                                   Label="@L["book_start_time"]"
-                                   Variant="Variant.Outlined" />
+                    <TimeInput @bind-Time="_bookStartTime"
+                               Label="@L["book_start_time"]" />
                 </MudItem>
 
                 <MudItem xs="12" sm="6">
@@ -291,9 +292,8 @@
                                    Label="@L["book_end_date"]"
                                    Variant="Variant.Outlined"
                                    Class="mb-2" />
-                    <MudTimePicker @bind-Time="_bookEndTime"
-                                   Label="@L["book_end_time"]"
-                                   Variant="Variant.Outlined" />
+                    <TimeInput @bind-Time="_bookEndTime"
+                               Label="@L["book_end_time"]" />
                 </MudItem>
             </MudGrid>
         </div>
@@ -354,12 +354,16 @@
 </MudDialog>
 
 @code {
+    [SupplyParameterFromQuery(Name = "bookingId")]
+    public string? BookingIdParam { get; set; }
+
     private List<Resource> _resources = [];
     private List<BookingDto> _bookings = [];
     private bool _loading = true;
     private string _activeTab = "bookings";
     private string _currentUserId = "";
     private Guid? _filterResourceId;
+    private Guid? _highlightedBookingId;
     private DateTime? _filterFrom = KyrgyzstanTime.Today;
     private DateTime? _filterTo = KyrgyzstanTime.Today.AddDays(7);
     private bool _bookingOpen;
@@ -393,6 +397,26 @@
         _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
         _resources = await BookingSvc.GetResourcesAsync();
         await LoadBookingsAsync();
+        await HandleBookingIdParamAsync();
+    }
+
+    private async Task HandleBookingIdParamAsync()
+    {
+        if (BookingIdParam is null || !Guid.TryParse(BookingIdParam, out var bookingId))
+            return;
+
+        _highlightedBookingId = bookingId;
+
+        if (!_bookings.Any(b => b.Id == bookingId))
+        {
+            _filterFrom = null;
+            _filterTo = null;
+            await LoadBookingsAsync();
+        }
+
+        var index = _bookings.FindIndex(b => b.Id == bookingId);
+        if (index >= 0)
+            _bookingPage = index / BookingPageSize + 1;
     }
 
     private async Task LoadBookingsAsync()

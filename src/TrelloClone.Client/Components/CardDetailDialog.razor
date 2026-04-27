@@ -184,10 +184,9 @@
                             <MudDatePicker @bind-Date="_dueDate" Variant="Variant.Outlined"
                                            Dense="true" Placeholder="@L["board_due_date_placeholder"]"
                                            Clearable="true" />
-                            <MudTimePicker @bind-Time="_dueTime" Variant="Variant.Outlined"
-                                           Dense="true" AmPm="false"
-                                           Clearable="true"
-                                           Placeholder="@L["tasks_due_time"]" />
+                            <TimeInput @bind-Time="_dueTime"
+                                       Label="@L["tasks_due_time"]"
+                                       Clearable="true" />
                         </div>
 
                         <!-- Labels -->

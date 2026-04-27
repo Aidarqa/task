@@ -256,6 +256,15 @@
         catch { }
     }
 
+    private static string BuildNotificationUrl(NotificationDto notif) =>
+        (notif.NotificationType, notif.RelatedEntityId) switch
+        {
+            (NotificationType.Event,   { } id) => $"/calendar?eventId={id}",
+            (NotificationType.Booking, { } id) => $"/bookings?bookingId={id}",
+            (NotificationType.System,  { } id) => $"/projects?projectId={id}",
+            _ => notif.Link ?? "/notifications"
+        };
+
     private void OpenNotification(NotificationDto notif)
     {
         if (!notif.IsRead)
@@ -267,7 +276,7 @@
             _ = NotificationSvc.MarkReadAsync(notif.Id);
         }
 
-        Nav.NavigateTo(notif.Link ?? "/notifications");
+        Nav.NavigateTo(BuildNotificationUrl(notif));
     }
 
     private string GetNotifTypeName(NotificationType t) => t switch

@@ -2,6 +2,11 @@
 @attribute [Authorize]
 @inherits LocalizedBase
 @inject EmployeeService EmployeeSvc
+@inject IAuthService AuthSvc
+@inject ChatClientService ChatSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>@L["emp_title"] - @L["app_name"]</PageTitle>
 
@@ -113,6 +118,31 @@
                             @(u.IsActive ? L["emp_active"] : L["emp_inactive"])
                         </MudChip>
                     </div>
+
+                    <div class="mt-2 d-flex" style="gap:6px;">
+                        @if (u.Id != _currentUserId)
+                        {
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.Chat"
+                                       OnClick="@(() => OpenDirectChatAsync(u.Id))">
+                                @L["emp_write_message"]
+                            </MudButton>
+                        }
+                        @if (u.Id == _currentUserId)
+                        {
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.PersonRemove"
+                                       OnClick="ConfirmDeleteSelfAsync">
+                                @L["emp_delete_self"]
+                            </MudButton>
+                        }
+                    </div>
                 </MudPaper>
             }
         </div>
@@ -125,6 +155,7 @@
     private bool _loading = true;
     private string _search = "";
     private Guid? _filterDeptId;
+    private string _currentUserId = "";
 
     private IEnumerable<UserDto> FilteredUsers => _users.Where(u =>
         (string.IsNullOrWhiteSpace(_search) || u.UserName.Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
@@ -135,12 +166,34 @@
         _loading = true;
         try
         {
+            _currentUserId = await AuthSvc.GetUserIdAsync() ?? "";
             (_users, _departments) = (await EmployeeSvc.GetAllAsync(), await EmployeeSvc.GetDepartmentsAsync());
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private async Task OpenDirectChatAsync(string userId)
+    {
+        var chatId = await ChatSvc.CreateDirectAsync(userId);
+        Nav.NavigateTo($"/chats?chatId={chatId}");
+    }
+
+    private async Task ConfirmDeleteSelfAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["emp_delete_self_title"],
+            L["emp_delete_self_confirm"],
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed != true) return;
+
+        await EmployeeSvc.DeleteSelfAsync();
+        await AuthSvc.LogoutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
     }
 
     private string GetAvatarColor(string name)

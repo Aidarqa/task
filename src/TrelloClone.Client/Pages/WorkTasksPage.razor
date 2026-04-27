@@ -473,6 +473,31 @@
                                         </MudButton>
                                     </div>
                                 }
+
+                                @if (CanReassign(_selectedTask))
+                                {
+                                    <div class="d-flex align-center" style="gap:.75rem; flex-wrap:wrap;">
+                                        <MudSelect T="string"
+                                                   @bind-Value="_selectedAssigneeId"
+                                                   Label="@L["tasks_assignee"]"
+                                                   Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense"
+                                                   Clearable="true"
+                                                   Style="min-width: 14rem;">
+                                            @foreach (var user in _users)
+                                            {
+                                                <MudSelectItem Value="@user.Id">@user.UserName</MudSelectItem>
+                                            }
+                                        </MudSelect>
+
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.PersonAdd"
+                                                   OnClick="ReassignTaskAsync">
+                                            @L["tasks_reassign"]
+                                        </MudButton>
+                                    </div>
+                                }
                             </MudStack>
                         </MudPaper>
 
@@ -661,11 +686,9 @@
                            Label="@L["tasks_due"]"
                            Variant="Variant.Outlined"
                            Clearable="true" />
-            <MudTimePicker @bind-Time="_newDueTime"
-                           Label="@L["tasks_due_time"]"
-                           Variant="Variant.Outlined"
-                           AmPm="false"
-                           Clearable="true" />
+            <TimeInput @bind-Time="_newDueTime"
+                       Label="@L["tasks_due_time"]"
+                       Clearable="true" />
         </MudStack>
     </DialogContent>
 
@@ -705,6 +728,7 @@
     private TimeSpan? _newDueTime;
     private string _currentUserId = string.Empty;
     private WorkTaskStatus _selectedStatus;
+    private string? _selectedAssigneeId;
     private string _newComment = string.Empty;
     private string _newChecklistText = string.Empty;
     private bool _pinUploads = true;
@@ -799,7 +823,10 @@
         {
             _selectedTask = await TaskSvc.GetAsync(TaskId.Value);
             if (_selectedTask is not null)
+            {
                 _selectedStatus = _selectedTask.Status;
+                _selectedAssigneeId = _selectedTask.AssigneeId;
+            }
         }
         catch
         {
@@ -948,6 +975,27 @@
     private bool CanDelete(WorkTaskDetailDto task)
         => task.AuthorId == _currentUserId;
 
+    private bool CanReassign(WorkTaskDetailDto task)
+        => task.AuthorId == _currentUserId;
+
+    private async Task ReassignTaskAsync()
+    {
+        if (_selectedTask is null) return;
+
+        await TaskSvc.UpdateAsync(_selectedTask.Id, new UpdateWorkTaskRequest(
+            _selectedTask.Title,
+            _selectedTask.Description,
+            _selectedTask.Status,
+            _selectedTask.Priority,
+            _selectedAssigneeId,
+            _selectedTask.StartDate,
+            _selectedTask.DueDate,
+            null));
+
+        Snackbar.Add(L["tasks_reassigned"], Severity.Success);
+        await RefreshAfterTaskChange(_selectedTask.Id);
+    }
+
     private async Task AcceptTaskAsync(WorkTaskSummary task)
     {
         await TaskSvc.AcceptAsync(task.Id);
@@ -1093,6 +1141,7 @@
 
         await TaskSvc.ToggleAttachmentPinAsync(_selectedTask.Id, attachmentId);
         await LoadSelectedTaskAsync();
+        Snackbar.Add(L["tasks_pin_toggled"], Severity.Success);
     }
 
     private async Task DeleteAttachmentAsync(Guid attachmentId)

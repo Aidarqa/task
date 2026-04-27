@@ -54,7 +54,8 @@
             @foreach (var p in _projects)
             {
                 <MudPaper Class="project-card-modern"
-                          Elevation="0"
+                          Elevation="@(p.Id == _highlightedProjectId ? 4 : 0)"
+                          Style="@(p.Id == _highlightedProjectId ? "outline: 2.5px solid var(--mud-palette-primary); outline-offset: 2px;" : "")"
                           @onclick="@(() => Nav.NavigateTo($"/tasks?project={p.Id}"))">
 
                     <div class="project-card-modern__cover" style="background:@p.Color">
@@ -259,9 +260,13 @@
 </MudDialog>
 
 @code {
+    [SupplyParameterFromQuery(Name = "projectId")]
+    public string? ProjectIdParam { get; set; }
+
     private List<Project> _projects = [];
     private List<UserDto> _users = [];
     private bool _loading = true;
+    private Guid? _highlightedProjectId;
     private bool _createOpen;
     private Guid? _editingProjectId;
     private string _name = "";
@@ -289,6 +294,9 @@
 
             _projects = await projectsTask;
             _users = await usersTask;
+
+            if (ProjectIdParam is not null && Guid.TryParse(ProjectIdParam, out var pid))
+                _highlightedProjectId = pid;
         }
         finally
         {

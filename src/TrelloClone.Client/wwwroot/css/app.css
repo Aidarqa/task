@@ -521,7 +521,6 @@ select:-webkit-autofill {
 }
 
 .board-card-modern:hover {
-  box-shadow: var(--mud-elevation-8);
   border-color: color-mix(in srgb, var(--board-color) 50%, white);
 }
 
@@ -1173,7 +1172,6 @@ select:-webkit-autofill {
 }
 
 .stat-card-modern:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -1739,7 +1737,6 @@ select:-webkit-autofill {
 
 .task-card-modern:hover,
 .task-card-board-modern:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2062,7 +2059,6 @@ select:-webkit-autofill {
 }
 
 .todo-list-card-modern:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2422,7 +2418,6 @@ select:-webkit-autofill {
 }
 
 .calendar-cell:hover {
-  box-shadow: var(--mud-elevation-4);
   border-color: var(--mud-palette-primary);
 }
 
@@ -2834,7 +2829,6 @@ select:-webkit-autofill {
 }
 
 .resource-card:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -3539,7 +3533,6 @@ select:-webkit-autofill {
 }
 
 .employee-card-modern:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 
@@ -3689,7 +3682,6 @@ select:-webkit-autofill {
 }
 
 .project-card-modern:hover {
-  box-shadow: var(--mud-elevation-6);
   border-color: var(--mud-palette-primary);
 }
 

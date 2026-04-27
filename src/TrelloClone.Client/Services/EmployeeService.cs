@@ -27,6 +27,9 @@ public class EmployeeService(HttpClient http)
         return await r.Content.ReadFromJsonAsync<Department>();
     }
 
+    public async Task DeleteSelfAsync()
+        => (await http.DeleteAsync("api/employees/me")).EnsureSuccessStatusCode();
+
     public async Task DeleteDepartmentAsync(Guid id)
         => (await http.DeleteAsync($"api/employees/departments/{id}")).EnsureSuccessStatusCode();
 }

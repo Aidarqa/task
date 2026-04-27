@@ -267,9 +267,17 @@
         if (!notif.IsRead)
             _ = NotifSvc.MarkReadAsync(notif.Id);
 
-        if (notif.Link is not null)
-            Nav.NavigateTo(notif.Link);
+        Nav.NavigateTo(BuildNotificationUrl(notif));
     }
+
+    private static string BuildNotificationUrl(NotificationDto notif) =>
+        (notif.NotificationType, notif.RelatedEntityId) switch
+        {
+            (NotificationType.Event,   { } id) => $"/calendar?eventId={id}",
+            (NotificationType.Booking, { } id) => $"/bookings?bookingId={id}",
+            (NotificationType.System,  { } id) => $"/projects?projectId={id}",
+            _ => notif.Link ?? "/notifications"
+        };
 
     private void SetTypeFilter(NotificationType? value)
     {

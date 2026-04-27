@@ -32,7 +32,7 @@
             </MudButtonGroup>
 
             <MudChip T="string" Color="Color.Primary" Variant="Variant.Text" Class="calendar-month-chip" Size="Size.Medium">
-                @_currentDate.ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo(L.Lang == "ky" ? "ky-KG" : "ru-RU"))
+                @FormatMonthYear(_currentDate)
             </MudChip>
 
             <MudButton Variant="Variant.Filled"
@@ -93,9 +93,10 @@
 
                             @if (dayEvents.Count > 3)
                             {
-                                <div class="calendar-event-more">
+                                <button type="button" class="calendar-event-more"
+                                        @onclick="@(() => ShowDayOverflow(cell.Date, dayEvents))">
                                     +@(dayEvents.Count - 3) @L["cal_more"]
-                                </div>
+                                </button>
                             }
                         </div>
                     </div>
@@ -141,10 +142,9 @@
                                    Label="@L["field_start"]"
                                    Variant="Variant.Outlined"
                                    Class="mb-2" />
-                    <MudTimePicker @bind-Time="_newStartTime"
-                                   Label="@L["cal_start_time"]"
-                                   Variant="Variant.Outlined"
-                                   Disabled="_newAllDay" />
+                    <TimeInput @bind-Time="_newStartTime"
+                               Label="@L["cal_start_time"]"
+                               Disabled="_newAllDay" />
                 </MudItem>
 
                 <MudItem xs="12" sm="6">
@@ -152,10 +152,9 @@
                                    Label="@L["field_end"]"
                                    Variant="Variant.Outlined"
                                    Class="mb-2" />
-                    <MudTimePicker @bind-Time="_newEndTime"
-                                   Label="@L["cal_end_time"]"
-                                   Variant="Variant.Outlined"
-                                   Disabled="_newAllDay" />
+                    <TimeInput @bind-Time="_newEndTime"
+                               Label="@L["cal_end_time"]"
+                               Disabled="_newAllDay" />
                 </MudItem>
             </MudGrid>
 
@@ -206,78 +205,130 @@
 </MudDialog>
 
 <MudDialog @bind-Visible="_detailOpen"
-           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>
-        <MudText Typo="Typo.h6">@_selectedEvent?.Title</MudText>
+        @if (_selectedEvent is not null)
+        {
+            <div class="d-flex align-center" style="gap:10px;">
+                <div style="width:5px;height:28px;border-radius:3px;background:@_selectedEvent.Color;flex-shrink:0;"></div>
+                <div>
+                    <MudText Typo="Typo.h6" Style="line-height:1.2;">@_selectedEvent.Title</MudText>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="margin:0;height:20px;">
+                        @GetEventTypeLabel(_selectedEvent.EventType)
+                    </MudChip>
+                </div>
+            </div>
+        }
     </TitleContent>
     <DialogContent>
         @if (_selectedEvent is not null)
         {
-            <div class="calendar-dialog-body">
-                <MudPaper Class="event-detail-card" Elevation="0">
-                    <MudStack Spacing="2">
-                        <MudText Typo="Typo.body2">
-                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Class="mr-1" />
+            <MudStack Spacing="3" Class="pt-1">
+
+                <div class="d-flex align-center" style="gap:10px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Primary" />
+                    <MudText Typo="Typo.body1">
+                        @if (_selectedEvent.IsAllDay)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">@L["cal_all_day"]</MudChip>
+                        }
+                        else
+                        {
                             @GetEventTimeRange(_selectedEvent)
-                        </MudText>
-
-                        @if (!string.IsNullOrWhiteSpace(_selectedEvent.Description))
-                        {
-                            <MudText Typo="Typo.body2">@_selectedEvent.Description</MudText>
                         }
+                    </MudText>
+                </div>
 
-                        <MudDivider />
+                @if (!string.IsNullOrWhiteSpace(_selectedEvent.Description))
+                {
+                    <div class="d-flex" style="gap:10px;align-items:flex-start;">
+                        <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Color="Color.Secondary" Style="margin-top:2px;flex-shrink:0;" />
+                        <MudText Typo="Typo.body2" Style="white-space:pre-wrap;">@_selectedEvent.Description</MudText>
+                    </div>
+                }
 
-                        <MudText Typo="Typo.body2">
-                            <b>@L["cal_organizer"]:</b> @_selectedEvent.OrganizerName
-                        </MudText>
+                <MudDivider />
 
-                        @if (!string.IsNullOrWhiteSpace(_selectedEvent.ResourceName))
-                        {
-                            <MudText Typo="Typo.body2">
-                                <b>@L["cal_resource"]:</b> @_selectedEvent.ResourceName
-                            </MudText>
-                        }
+                <div class="d-flex align-center" style="gap:10px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Secondary" />
+                    <MudText Typo="Typo.body2"><b>@L["cal_organizer"]:</b> @_selectedEvent.OrganizerName</MudText>
+                </div>
 
-                        @if (_selectedEvent.Participants.Count > 0)
-                        {
-                            <div>
-                                <MudText Typo="Typo.body2" Class="mb-2">
-                                    <b>@L["cal_participants"]:</b>
-                                </MudText>
+                @if (!string.IsNullOrWhiteSpace(_selectedEvent.ResourceName))
+                {
+                    <div class="d-flex align-center" style="gap:10px;">
+                        <MudIcon Icon="@Icons.Material.Filled.MeetingRoom" Size="Size.Small" Color="Color.Secondary" />
+                        <MudText Typo="Typo.body2"><b>@L["cal_resource"]:</b> @_selectedEvent.ResourceName</MudText>
+                    </div>
+                }
 
-                                <div class="participants-wrap">
-                                    @foreach (var p in _selectedEvent.Participants)
-                                    {
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
-                                            @p.UserName
-                                        </MudChip>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    </MudStack>
-                </MudPaper>
-            </div>
+                @if (_selectedEvent.Participants.Count > 0)
+                {
+                    <div>
+                        <div class="d-flex align-center mb-2" style="gap:10px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.body2"><b>@L["cal_participants"]:</b></MudText>
+                        </div>
+                        <div class="d-flex flex-wrap" style="gap:6px;padding-left:28px;">
+                            @foreach (var p in _selectedEvent.Participants)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">
+                                    @p.UserName
+                                </MudChip>
+                            }
+                        </div>
+                    </div>
+                }
+
+            </MudStack>
         }
     </DialogContent>
     <DialogActions>
         @if (CanManageSelectedEvent)
         {
-            <MudButton OnClick="EditEvent" Color="Color.Primary">
+            <MudButton StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="EditEvent" Color="Color.Primary" Variant="Variant.Outlined">
                 @L["cal_edit"]
             </MudButton>
-            <MudButton OnClick="DeleteEvent" Color="Color.Error">
+            <MudButton StartIcon="@Icons.Material.Filled.Delete"
+                       OnClick="DeleteEvent" Color="Color.Error" Variant="Variant.Outlined">
                 @L["cal_delete"]
             </MudButton>
         }
-        <MudButton OnClick="@(() => _detailOpen = false)">
-            @L["btn_close"]
-        </MudButton>
+        <MudButton OnClick="@(() => _detailOpen = false)">@L["btn_close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_dayOverflowOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@FormatDayTitle(_dayOverflowDate)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="1">
+            @foreach (var ev in _dayOverflowEvents)
+            {
+                <button type="button"
+                        class="calendar-event-pill"
+                        style="border-left-color:@ev.Color;width:100%;"
+                        @onclick="@(() => OpenDetailFromOverflow(ev))">
+                    <span class="calendar-event-pill__time">
+                        @(ev.IsAllDay ? L["cal_all_day"] : KyrgyzstanTime.FormatDateTime(ev.StartTime))
+                    </span>
+                    <span class="calendar-event-pill__title">@ev.Title</span>
+                </button>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dayOverflowOpen = false)">@L["btn_close"]</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
+    [SupplyParameterFromQuery(Name = "eventId")]
+    public string? EventIdParam { get; set; }
+
     private List<CalendarEventDto> _events = [];
     private List<UserDto> _users = [];
     private List<Resource> _resources = [];
@@ -286,6 +337,9 @@
     private List<CalendarCell> _calendarCells = [];
     private bool _createOpen;
     private bool _detailOpen;
+    private bool _dayOverflowOpen;
+    private DateTime _dayOverflowDate;
+    private List<CalendarEventDto> _dayOverflowEvents = [];
     private Guid? _editingEventId;
     private CalendarEventDto? _selectedEvent;
     private string _currentUserId = string.Empty;
@@ -313,6 +367,7 @@
         _users = await usersTask;
         _resources = await resourcesTask;
         await LoadAsync();
+        await OpenEventFromParamAsync();
     }
 
     private async Task LoadAsync()
@@ -386,10 +441,43 @@
         _createOpen = true;
     }
 
+    private async Task OpenEventFromParamAsync()
+    {
+        if (EventIdParam is null || !Guid.TryParse(EventIdParam, out var eventId))
+            return;
+
+        var ev = _events.FirstOrDefault(e => e.Id == eventId);
+
+        if (ev is null)
+        {
+            ev = await CalendarSvc.GetAsync(eventId);
+            if (ev is null) return;
+
+            _currentDate = new DateTime(ev.StartTime.Year, ev.StartTime.Month, 1);
+            await LoadAsync();
+            ev = _events.FirstOrDefault(e => e.Id == eventId) ?? ev;
+        }
+
+        ShowEventDetail(ev);
+    }
+
     private void ShowEventDetail(CalendarEventDto ev)
     {
         _selectedEvent = ev;
         _detailOpen = true;
+    }
+
+    private void ShowDayOverflow(DateTime date, List<CalendarEventDto> events)
+    {
+        _dayOverflowDate = date;
+        _dayOverflowEvents = events;
+        _dayOverflowOpen = true;
+    }
+
+    private void OpenDetailFromOverflow(CalendarEventDto ev)
+    {
+        _dayOverflowOpen = false;
+        ShowEventDetail(ev);
     }
 
     private void EditEvent()
@@ -516,6 +604,23 @@
 
     private static string GetEventTimeRange(CalendarEventDto ev)
         => KyrgyzstanTime.FormatDateTimeRange(ev.StartTime, ev.EndTime);
+
+    private string[] MonthsGen => L["cal_months_gen"].Split(',');
+
+    private string FormatDayTitle(DateTime date)
+        => $"{date.Day} {MonthsGen[date.Month - 1]}";
+
+    private string FormatMonthYear(DateTime date)
+        => $"{char.ToUpper(MonthsGen[date.Month - 1][0])}{MonthsGen[date.Month - 1][1..]} {date.Year}";
+
+    private string GetEventTypeLabel(CalendarEventType type) => type switch
+    {
+        CalendarEventType.Meeting  => L["cal_type_meeting"],
+        CalendarEventType.Task     => L["cal_type_task"],
+        CalendarEventType.Personal => L["cal_type_personal"],
+        CalendarEventType.TeamEvent => L["cal_type_team"],
+        _ => type.ToString()
+    };
 
     private string FormatUserSelectValue(string userId)
         => _users.FirstOrDefault(user => user.Id == userId)?.UserName ?? userId;

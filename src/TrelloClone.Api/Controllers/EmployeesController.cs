@@ -88,6 +88,21 @@ public class EmployeesController(AppDbContext db) : ControllerBase
         return Ok(dept);
     }
 
+    // DELETE /api/employees/me
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteSelf()
+    {
+        var user = await db.Users.FindAsync(CurrentUserId);
+        if (user is null) return NotFound();
+
+        var profile = await db.EmployeeProfiles.FindAsync(CurrentUserId);
+        if (profile is not null) db.EmployeeProfiles.Remove(profile);
+
+        db.Users.Remove(user);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // DELETE /api/employees/departments/{id}
     [HttpDelete("departments/{id:guid}")]
     public async Task<IActionResult> DeleteDepartment(Guid id)
