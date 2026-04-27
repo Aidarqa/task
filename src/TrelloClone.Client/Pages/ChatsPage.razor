@@ -160,6 +160,12 @@
                                         @(_activeChat.Members.Count + " " + L["chat_participants"])
                                     }
                                 </MudText>
+                                @if (_typingUsers.Count > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Class="chat-typing-status">
+                                        @GetTypingText()
+                                    </MudText>
+                                }
                             </div>
                         </div>
 
@@ -229,6 +235,10 @@
 
                                             @if (m.IsOwn && !m.IsDeleted)
                                             {
+                                                <span class="message-read-status-modern" title="@(m.IsReadByOthers ? "Прочитано" : "Отправлено")">
+                                                    <MudIcon Icon="@(m.IsReadByOthers ? Icons.Material.Filled.DoneAll : Icons.Material.Filled.Done)"
+                                                             Size="Size.Small" />
+                                                </span>
                                                 <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
                                                                Size="Size.Small"
                                                                Class="message-delete-btn-modern"
@@ -242,13 +252,16 @@
                     </div>
 
                     <div class="message-input-bar-modern">
-                        <MudTextField @bind-Value="_newMessage"
+                        <MudTextField T="string"
+                                      Value="_newMessage"
+                                      ValueChanged="OnMessageInputChanged"
                                       Placeholder="@L["chat_placeholder"]"
                                       Variant="Variant.Outlined"
-                                      Lines="2" Margin="Margin.Dense"
+                                      Margin="Margin.Dense"
                                       AutoGrow="true"
+                                      Immediate="true"
                                       Style="flex:1"
-                                      @onkeydown="@(async e => { if (e.Key == "Enter" && !e.ShiftKey) await SendMessage(); })" />
+                                      OnKeyDown="HandleMessageKeyDown" />
 
                         <InputFile id="chat-file-upload"
                                    class="file-picker-input"
@@ -263,7 +276,7 @@
                                    Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.Send"
                                    OnClick="SendMessage"
-                                   Disabled="@string.IsNullOrWhiteSpace(_newMessage)"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newMessage) || _sendingMessage)"
                                    Class="send-btn-modern">
                             @L["chat_send"]
                         </MudButton>
@@ -346,6 +359,7 @@
     private Guid? _activeChatId;
     private string _search = "";
     private string _newMessage = "";
+    private bool _sendingMessage;
     private bool _loadingMessages;
     private bool _newChatOpen;
     private string _newChatType = "direct";
@@ -356,6 +370,9 @@
     private ElementReference _messagesContainer;
     private string _currentUserId = "";
     private bool _shouldScrollToBottom;
+    private readonly Dictionary<string, string> _typingUsers = [];
+    private CancellationTokenSource? _typingStopCts;
+    private bool _isTyping;
     private readonly HashSet<Guid> _handledChatNotificationIds = [];
 
     private IEnumerable<ChatSummaryDto> FilteredChats => string.IsNullOrWhiteSpace(_search)
@@ -369,6 +386,8 @@
         NotifSvc.OnNotification += OnChatNotificationReceived;
         NotifSvc.OnPresenceChanged += OnPresenceChanged;
         ChatSvc.OnNewMessage += OnNewMessage;
+        ChatSvc.OnChatRead += OnChatRead;
+        ChatSvc.OnTyping += OnTyping;
         _users = await EmployeeSvc.GetAllAsync();
         _chats = await ChatSvc.GetChatsAsync();
 
@@ -408,11 +427,15 @@
     private async Task SelectChat(ChatSummaryDto chat)
     {
         if (_activeChatId.HasValue)
+        {
+            await NotifyTypingAsync(false);
             await ChatSvc.LeaveChatAsync(_activeChatId.Value);
+        }
 
         _activeChat = chat;
         _activeChatId = chat.Id;
         _loadingMessages = true;
+        _typingUsers.Clear();
         StateHasChanged();
 
         await ChatSvc.ConnectAsync(chat.Id);
@@ -467,6 +490,39 @@
         UpdateChatBadge(chatId, notif.Body);
     }
 
+    private void OnChatRead(ChatReadEvent evt)
+    {
+        if (evt.ChatId != _activeChatId || evt.UserId == _currentUserId)
+            return;
+
+        var changed = false;
+        for (var i = 0; i < _messages.Count; i++)
+        {
+            var message = _messages[i];
+            if (message.IsOwn && !message.IsDeleted && !message.IsReadByOthers && message.SentAt <= evt.ReadAt)
+            {
+                _messages[i] = message with { IsReadByOthers = true };
+                changed = true;
+            }
+        }
+
+        if (changed)
+            _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnTyping(ChatTypingEvent evt)
+    {
+        if (evt.ChatId != _activeChatId || evt.UserId == _currentUserId)
+            return;
+
+        if (evt.IsTyping)
+            _typingUsers[evt.UserId] = evt.UserName;
+        else
+            _typingUsers.Remove(evt.UserId);
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     private void UpdateChatBadge(Guid chatId, string? lastMessage)
     {
         var idx = _chats.FindIndex(c => c.Id == chatId);
@@ -493,16 +549,72 @@
 
     private async Task SendMessage()
     {
-        if (_activeChatId is null || string.IsNullOrWhiteSpace(_newMessage)) return;
+        if (_sendingMessage || _activeChatId is null || string.IsNullOrWhiteSpace(_newMessage)) return;
+        _sendingMessage = true;
         var text = _newMessage;
         _newMessage = "";
-        var msg = await ChatSvc.SendMessageAsync(_activeChatId.Value, text);
-        if (msg is not null)
+        await NotifyTypingAsync(false);
+        try
         {
-            _messages.Add(msg with { IsOwn = true });
-            _shouldScrollToBottom = true;
-            StateHasChanged();
+            var msg = await ChatSvc.SendMessageAsync(_activeChatId.Value, text);
+            if (msg is not null)
+            {
+                _messages.Add(msg with { IsOwn = true });
+                _shouldScrollToBottom = true;
+                StateHasChanged();
+            }
         }
+        finally
+        {
+            _sendingMessage = false;
+        }
+    }
+
+    private async Task HandleMessageKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            await SendMessage();
+    }
+
+    private Task OnMessageInputChanged(string value)
+    {
+        _newMessage = value;
+        if (_activeChatId.HasValue)
+            _ = NotifyTypingWithDelayAsync(!string.IsNullOrWhiteSpace(value));
+
+        return Task.CompletedTask;
+    }
+
+    private async Task NotifyTypingWithDelayAsync(bool isTyping)
+    {
+        await NotifyTypingAsync(isTyping);
+        _typingStopCts?.Cancel();
+
+        if (!isTyping)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _typingStopCts = cts;
+
+        try
+        {
+            await Task.Delay(1800, cts.Token);
+            await NotifyTypingAsync(false);
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task NotifyTypingAsync(bool isTyping)
+    {
+        if (_activeChatId is null || _isTyping == isTyping)
+            return;
+
+        _isTyping = isTyping;
+        try
+        {
+            await ChatSvc.SendTypingAsync(_activeChatId.Value, isTyping);
+        }
+        catch { }
     }
 
     private async Task UploadFilesAsync(InputFileChangeEventArgs args)
@@ -516,6 +628,7 @@
 
         var caption = _newMessage;
         _newMessage = "";
+        await NotifyTypingAsync(false);
 
         try
         {
@@ -564,10 +677,12 @@
 
         if (_activeChatId == chat.Id)
         {
+            await NotifyTypingAsync(false);
             await ChatSvc.LeaveChatAsync(chat.Id);
             _activeChatId = null;
             _activeChat = null;
             _messages = [];
+            _typingUsers.Clear();
         }
 
         _chats.RemoveAll(c => c.Id == chat.Id);
@@ -696,12 +811,26 @@
         return otherId is not null && NotifSvc.OnlineUserIds.Contains(otherId);
     }
 
+    private string GetTypingText()
+    {
+        if (_typingUsers.Count == 1)
+            return $"{_typingUsers.Values.First()} печатает...";
+
+        return "Несколько участников печатают...";
+    }
+
     public async ValueTask DisposeAsync()
     {
         NotifSvc.OnNotification -= OnChatNotificationReceived;
         NotifSvc.OnPresenceChanged -= OnPresenceChanged;
         ChatSvc.OnNewMessage -= OnNewMessage;
+        ChatSvc.OnChatRead -= OnChatRead;
+        ChatSvc.OnTyping -= OnTyping;
+        _typingStopCts?.Cancel();
         if (_activeChatId.HasValue)
+        {
+            await NotifyTypingAsync(false);
             await ChatSvc.LeaveChatAsync(_activeChatId.Value);
+        }
     }
 }

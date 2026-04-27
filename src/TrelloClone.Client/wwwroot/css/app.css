@@ -3263,6 +3263,13 @@ select:-webkit-autofill {
   color: var(--mud-palette-text-secondary);
 }
 
+.chat-typing-status {
+  display: block;
+  color: var(--mud-palette-primary);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 .messages-area-modern {
   flex: 1;
   /* min-height: 0 is critical — without it a flex child won't shrink below content size */
@@ -3362,6 +3369,20 @@ select:-webkit-autofill {
 .message-time-modern {
   font-size: 0.74rem;
   color: var(--mud-palette-text-secondary);
+}
+
+.message-read-status-modern {
+  display: inline-flex;
+  align-items: center;
+  color: var(--mud-palette-text-secondary);
+}
+
+.message-read-status-modern .mud-icon-root {
+  font-size: 1rem;
+}
+
+.message-read-status-modern[title="Прочитано"] {
+  color: var(--mud-palette-primary);
 }
 
 .message-delete-btn-modern {

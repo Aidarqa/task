@@ -163,7 +163,8 @@ public record ChatMemberDto(string UserId, string UserName);
 
 public record ChatMessageDto(
     Guid Id, string Text, string SenderId, string SenderName,
-    DateTime SentAt, bool IsDeleted, bool IsOwn, List<FileAttachmentDto>? Attachments = null
+    DateTime SentAt, bool IsDeleted, bool IsOwn, List<FileAttachmentDto>? Attachments = null,
+    bool IsReadByOthers = false
 );
 
 // ── Notification DTOs ─────────────────────────────────────
@@ -204,4 +205,6 @@ public record DashboardStats(
 
 // ── SignalR Events ────────────────────────────────────────
 public record NewMessageEvent(Guid ChatId, ChatMessageDto Message);
+public record ChatReadEvent(Guid ChatId, string UserId, DateTime ReadAt);
+public record ChatTypingEvent(Guid ChatId, string UserId, string UserName, bool IsTyping);
 public record NotificationEvent(NotificationDto Notification);

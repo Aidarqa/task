@@ -17,6 +17,8 @@ public class ChatClientService : IAsyncDisposable
     private Guid? _currentChatId;
 
     public event Action<NewMessageEvent>? OnNewMessage;
+    public event Action<ChatReadEvent>? OnChatRead;
+    public event Action<ChatTypingEvent>? OnTyping;
 
     public ChatClientService(HttpClient http, ILocalStorageService localStorage, NavigationManager nav, LocalizationService l)
     {
@@ -46,6 +48,8 @@ public class ChatClientService : IAsyncDisposable
                 .Build();
 
             _hub.On<NewMessageEvent>("NewMessage", evt => OnNewMessage?.Invoke(NormalizeEvent(evt)));
+            _hub.On<ChatReadEvent>("ChatRead", evt => OnChatRead?.Invoke(NormalizeReadEvent(evt)));
+            _hub.On<ChatTypingEvent>("UserTyping", evt => OnTyping?.Invoke(evt));
             _hub.Reconnected += async _ =>
             {
                 try
@@ -66,6 +70,12 @@ public class ChatClientService : IAsyncDisposable
     {
         if (_hub?.State == HubConnectionState.Connected)
             await _hub.InvokeAsync("LeaveChat", chatId.ToString());
+    }
+
+    public async Task SendTypingAsync(Guid chatId, bool isTyping)
+    {
+        if (_hub?.State == HubConnectionState.Connected)
+            await _hub.InvokeAsync("SendTyping", chatId.ToString(), isTyping);
     }
 
     public async Task<List<ChatSummaryDto>> GetChatsAsync()
@@ -161,6 +171,9 @@ public class ChatClientService : IAsyncDisposable
 
     private static NewMessageEvent NormalizeEvent(NewMessageEvent evt)
         => evt with { Message = NormalizeMessage(evt.Message) };
+
+    private static ChatReadEvent NormalizeReadEvent(ChatReadEvent evt)
+        => evt with { ReadAt = KyrgyzstanTime.ConvertFromApi(evt.ReadAt) };
 
     private static FileAttachmentDto NormalizeAttachment(FileAttachmentDto attachment)
         => attachment with

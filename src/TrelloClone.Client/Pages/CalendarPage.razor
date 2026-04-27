@@ -442,11 +442,13 @@
 
         var editingEventId = _editingEventId;
 
+        CalendarEventDto? savedEvent = null;
+
         try
         {
             if (editingEventId.HasValue)
             {
-                await CalendarSvc.UpdateAsync(editingEventId.Value, new UpdateCalendarEventRequest(
+                savedEvent = await CalendarSvc.UpdateAsync(editingEventId.Value, new UpdateCalendarEventRequest(
                     _newTitle,
                     _newDesc,
                     start,
@@ -459,7 +461,7 @@
             }
             else
             {
-                await CalendarSvc.CreateAsync(new CreateCalendarEventRequest(
+                savedEvent = await CalendarSvc.CreateAsync(new CreateCalendarEventRequest(
                     _newTitle,
                     _newDesc,
                     start,
@@ -483,7 +485,7 @@
 
         if (editingEventId.HasValue)
         {
-            _selectedEvent = _events.FirstOrDefault(e => e.Id == editingEventId.Value);
+            _selectedEvent = savedEvent ?? _events.FirstOrDefault(e => e.Id == editingEventId.Value);
             Snackbar.Add(L["cal_updated"], Severity.Success);
         }
         else

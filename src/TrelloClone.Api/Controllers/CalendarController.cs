@@ -131,13 +131,20 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
         ev.Color = req.Color;
         ev.EventType = req.EventType;
         ev.ResourceId = req.ResourceId;
-        ev.Participants.Clear();
-        ev.Participants.AddRange(await BuildParticipantsAsync(ev.Id, req.ParticipantIds));
+
+        var currentParticipants = await db.EventParticipants
+            .Where(p => p.EventId == ev.Id)
+            .ToListAsync();
+        db.EventParticipants.RemoveRange(currentParticipants);
+
+        var newParticipants = await BuildParticipantsAsync(ev.Id, req.ParticipantIds);
+        if (newParticipants.Count > 0)
+            await db.EventParticipants.AddRangeAsync(newParticipants);
 
         await SyncBookingAsync(ev);
         await db.SaveChangesAsync();
 
-        var participantIds = ev.Participants.Select(p => p.UserId)
+        var participantIds = newParticipants.Select(p => p.UserId)
             .Where(uid => uid != CurrentUserId);
 
         var startLocalUpd = KyrgyzstanTime.ConvertFromUtc(ev.StartTime);
@@ -150,6 +157,7 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
             ev.Id.ToString());
 
         var resources = await db.Resources.ToDictionaryAsync(r => r.Id, r => r.Name);
+        ev.Participants = newParticipants;
         return Ok(ToDto(ev, resources));
     }
 

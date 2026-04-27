@@ -78,9 +78,13 @@ public class ChatsController(
             await db.SaveChangesAsync();
         }
 
+        var members = await db.ChatMembers
+            .Where(m => m.ChatId == id)
+            .ToListAsync();
+
         return Ok(messages
             .OrderBy(m => m.SentAt)
-            .Select(ToMessageDto)
+            .Select(message => ToMessageDto(message, members))
             .ToList());
     }
 
@@ -222,6 +226,7 @@ public class ChatsController(
 
         message.IsDeleted = true;
         await db.SaveChangesAsync();
+
         return NoContent();
     }
 
@@ -242,6 +247,10 @@ public class ChatsController(
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
 
         await db.SaveChangesAsync();
+
+        await chatHub.Clients.Group(id.ToString())
+            .SendAsync("ChatRead", new ChatReadEvent(id, CurrentUserId, member.LastReadAt.Value));
+
         return NoContent();
     }
 
@@ -287,7 +296,10 @@ public class ChatsController(
         db.Notifications.AddRange(notifications);
         await db.SaveChangesAsync();
 
-        var dto = ToMessageDto(message);
+        var members = await db.ChatMembers
+            .Where(m => m.ChatId == chatId)
+            .ToListAsync();
+        var dto = ToMessageDto(message, members);
         await chatHub.Clients.Group(chatId.ToString())
             .SendAsync("NewMessage", new NewMessageEvent(chatId, dto with { IsOwn = false }));
 
@@ -310,7 +322,7 @@ public class ChatsController(
         return dto;
     }
 
-    private ChatMessageDto ToMessageDto(ChatMessage message)
+    private ChatMessageDto ToMessageDto(ChatMessage message, IReadOnlyCollection<ChatMember>? members = null)
         => new(
             message.Id,
             message.IsDeleted ? "Сообщение удалено" : message.Text,
@@ -324,7 +336,12 @@ public class ChatsController(
                 : message.Attachments
                     .OrderByDescending(a => a.UploadedAt)
                     .Select(ToAttachmentDto)
-                    .ToList());
+                    .ToList(),
+            message.SenderId == CurrentUserId
+                && members is not null
+                && members.Any(m => m.UserId != CurrentUserId
+                                 && m.LastReadAt.HasValue
+                                 && m.LastReadAt.Value >= message.SentAt));
 
     private FileAttachmentDto ToAttachmentDto(FileAttachment attachment)
         => new(
