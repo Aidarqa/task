@@ -24,11 +24,17 @@
     {
         if (string.IsNullOrEmpty(value))
             await TimeChanged.InvokeAsync(null);
-        else if (TimeSpan.TryParseExact(value, "hh\\:mm",
-                     System.Globalization.CultureInfo.InvariantCulture, out var ts))
+        else if (TryParseTime(value, out var ts))
             await TimeChanged.InvokeAsync(ts);
     }
 
     private async Task OnClear()
         => await TimeChanged.InvokeAsync(null);
+
+    private static bool TryParseTime(string value, out TimeSpan time)
+    {
+        var formats = new[] { "h\\:mm", "hh\\:mm", "h\\:mm\\:ss", "hh\\:mm\\:ss" };
+        return TimeSpan.TryParseExact(value, formats, System.Globalization.CultureInfo.InvariantCulture, out time)
+            || TimeSpan.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out time);
+    }
 }

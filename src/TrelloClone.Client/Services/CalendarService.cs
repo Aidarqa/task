@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using TrelloClone.Shared.Models;
 
 namespace TrelloClone.Client.Services;
@@ -38,7 +39,7 @@ public class CalendarService(HttpClient http)
         };
         var r = await http.PostAsJsonAsync("api/calendar", normalizedReq);
         if (!r.IsSuccessStatusCode)
-            throw new InvalidOperationException(await r.Content.ReadAsStringAsync());
+            throw new InvalidOperationException(await ReadErrorMessageAsync(r));
 
         var ev = await r.Content.ReadFromJsonAsync<CalendarEventDto>();
         return ev is null ? null : NormalizeEvent(ev);
@@ -53,7 +54,7 @@ public class CalendarService(HttpClient http)
         };
         var r = await http.PutAsJsonAsync($"api/calendar/{id}", normalizedReq);
         if (!r.IsSuccessStatusCode)
-            throw new InvalidOperationException(await r.Content.ReadAsStringAsync());
+            throw new InvalidOperationException(await ReadErrorMessageAsync(r));
 
         var ev = await r.Content.ReadFromJsonAsync<CalendarEventDto>();
         return ev is null ? null : NormalizeEvent(ev);
@@ -68,4 +69,21 @@ public class CalendarService(HttpClient http)
             StartTime = KyrgyzstanTime.ConvertFromApi(ev.StartTime),
             EndTime = KyrgyzstanTime.ConvertFromApi(ev.EndTime)
         };
+
+    private static async Task<string> ReadErrorMessageAsync(HttpResponseMessage response)
+    {
+        var raw = await response.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(raw))
+            return response.ReasonPhrase ?? "Ошибка сохранения события";
+
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
+                return error.GetString() ?? raw;
+        }
+        catch (JsonException) { }
+
+        return raw;
+    }
 }

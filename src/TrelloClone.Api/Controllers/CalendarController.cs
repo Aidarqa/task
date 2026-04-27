@@ -63,6 +63,12 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
         var start = KyrgyzstanTime.NormalizeUtc(req.StartTime);
         var end = KyrgyzstanTime.NormalizeUtc(req.EndTime);
 
+        if (IsCreateInPast(start, req.IsAllDay))
+            return BadRequest(new { error = "Нельзя создать событие задним числом" });
+
+        if (end <= start)
+            return BadRequest(new { error = "Время окончания должно быть позже времени начала" });
+
         if (req.ResourceId.HasValue && await HasResourceConflictAsync(req.ResourceId.Value, start, end))
             return Conflict(new { error = "Кабинет уже забронирован на это время" });
 
@@ -200,6 +206,11 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
             UserName = u.UserName ?? u.Email ?? u.Id
         }).ToList();
     }
+
+    private static bool IsCreateInPast(DateTime startUtc, bool isAllDay)
+        => isAllDay
+            ? KyrgyzstanTime.ConvertFromUtc(startUtc).Date < KyrgyzstanTime.Today
+            : startUtc < DateTime.UtcNow;
 
     private async Task<bool> HasResourceConflictAsync(Guid resourceId, DateTime start, DateTime end, Guid? eventId = null)
         => await db.Bookings.AnyAsync(b =>

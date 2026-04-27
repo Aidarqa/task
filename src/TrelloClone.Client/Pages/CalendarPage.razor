@@ -439,8 +439,8 @@
         _newType = CalendarEventType.Meeting;
         _newStart = KyrgyzstanTime.Today;
         _newEnd = KyrgyzstanTime.Today;
-        _newStartTime = TimeSpan.FromHours(9);
-        _newEndTime = TimeSpan.FromHours(10);
+        _newStartTime = GetDefaultStartTime(KyrgyzstanTime.Today);
+        _newEndTime = GetDefaultEndTime(KyrgyzstanTime.Today, _newStartTime.Value);
         _newAllDay = false;
         _newParticipantIds = [];
         _newResourceId = null;
@@ -464,8 +464,8 @@
         _newType = CalendarEventType.Meeting;
         _newStart = date;
         _newEnd = date;
-        _newStartTime = TimeSpan.FromHours(9);
-        _newEndTime = TimeSpan.FromHours(10);
+        _newStartTime = GetDefaultStartTime(date);
+        _newEndTime = GetDefaultEndTime(date, _newStartTime.Value);
         _newAllDay = false;
         _newParticipantIds = [];
         _newResourceId = null;
@@ -553,7 +553,7 @@
             end = endDate.Date + (_newEndTime ?? TimeSpan.FromHours(10));
         }
 
-        if (!_editingEventId.HasValue && start < KyrgyzstanTime.Now)
+        if (!_editingEventId.HasValue && IsCreateInPast(start, _newAllDay))
         {
             Snackbar.Add(L["cal_past_date"], Severity.Warning);
             return;
@@ -641,6 +641,34 @@
 
     private static string GetEventTimeRange(CalendarEventDto ev)
         => KyrgyzstanTime.FormatDateTimeRange(ev.StartTime, ev.EndTime);
+
+    private static TimeSpan GetDefaultStartTime(DateTime date)
+    {
+        if (date.Date != KyrgyzstanTime.Today)
+            return TimeSpan.FromHours(9);
+
+        var now = KyrgyzstanTime.Now;
+        var nextSlot = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0)
+            .AddMinutes(now.Minute < 30 ? 30 : 60);
+
+        if (nextSlot.Date == KyrgyzstanTime.Today && nextSlot.TimeOfDay < new TimeSpan(23, 59, 0))
+            return nextSlot.TimeOfDay;
+
+        var fallback = now.AddMinutes(1);
+        return fallback.Date == KyrgyzstanTime.Today && fallback.TimeOfDay < new TimeSpan(23, 59, 0)
+            ? new TimeSpan(fallback.Hour, fallback.Minute, 0)
+            : new TimeSpan(23, 58, 0);
+    }
+
+    private static TimeSpan GetDefaultEndTime(DateTime date, TimeSpan start)
+        => date.Date == KyrgyzstanTime.Today && start >= new TimeSpan(23, 0, 0)
+            ? new TimeSpan(23, 59, 0)
+            : start.Add(TimeSpan.FromHours(1));
+
+    private static bool IsCreateInPast(DateTime start, bool isAllDay)
+        => isAllDay
+            ? start.Date < KyrgyzstanTime.Today
+            : start < KyrgyzstanTime.Now;
 
     private string[] MonthsGen => L["cal_months_gen"].Split(',');
 
