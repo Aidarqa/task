@@ -2,7 +2,10 @@
 @attribute [Authorize]
 @inherits LocalizedBase
 @inject CalendarService CalendarSvc
+@inject EmployeeService EmployeeSvc
+@inject BookingService BookingSvc
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>@L["cal_title"] - @L["app_name"]</PageTitle>
 
@@ -159,6 +162,35 @@
             <MudCheckBox @bind-Value="_newAllDay"
                          Label="@L["cal_all_day"]"
                          Class="mt-3" />
+
+            <MudSelect T="string"
+                       @bind-SelectedValues="_newParticipantIds"
+                       Label="@L["cal_participants"]"
+                       MultiSelection="true"
+                       Variant="Variant.Outlined"
+                       ToStringFunc="FormatUserSelectValue"
+                       MultiSelectionTextFunc="FormatSelectedUsersText"
+                       Class="mt-3">
+                @foreach (var user in _users.OrderBy(u => u.UserName))
+                {
+                    <MudSelectItem T="string" Value="@user.Id">@user.UserName</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudSelect T="Guid?"
+                       @bind-Value="_newResourceId"
+                       Label="@L["cal_resource"]"
+                       Variant="Variant.Outlined"
+                       Clearable="true"
+                       ToStringFunc="FormatResourceSelectValue"
+                       Class="mt-3">
+                @foreach (var resource in _resources.Where(r => r.ResourceType == ResourceType.Room).OrderBy(r => r.Name))
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)resource.Id)">
+                        @FormatResourceName(resource)
+                    </MudSelectItem>
+                }
+            </MudSelect>
         </div>
     </DialogContent>
     <DialogActions>
@@ -200,6 +232,13 @@
                             <b>@L["cal_organizer"]:</b> @_selectedEvent.OrganizerName
                         </MudText>
 
+                        @if (!string.IsNullOrWhiteSpace(_selectedEvent.ResourceName))
+                        {
+                            <MudText Typo="Typo.body2">
+                                <b>@L["cal_resource"]:</b> @_selectedEvent.ResourceName
+                            </MudText>
+                        }
+
                         @if (_selectedEvent.Participants.Count > 0)
                         {
                             <div>
@@ -223,12 +262,15 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="EditEvent" Color="Color.Primary">
-            @L["cal_edit"]
-        </MudButton>
-        <MudButton OnClick="DeleteEvent" Color="Color.Error">
-            @L["cal_delete"]
-        </MudButton>
+        @if (CanManageSelectedEvent)
+        {
+            <MudButton OnClick="EditEvent" Color="Color.Primary">
+                @L["cal_edit"]
+            </MudButton>
+            <MudButton OnClick="DeleteEvent" Color="Color.Error">
+                @L["cal_delete"]
+            </MudButton>
+        }
         <MudButton OnClick="@(() => _detailOpen = false)">
             @L["btn_close"]
         </MudButton>
@@ -237,6 +279,8 @@
 
 @code {
     private List<CalendarEventDto> _events = [];
+    private List<UserDto> _users = [];
+    private List<Resource> _resources = [];
     private bool _loading = true;
     private DateTime _currentDate = KyrgyzstanTime.Today;
     private List<CalendarCell> _calendarCells = [];
@@ -244,6 +288,7 @@
     private bool _detailOpen;
     private Guid? _editingEventId;
     private CalendarEventDto? _selectedEvent;
+    private string _currentUserId = string.Empty;
     private string _newTitle = "";
     private string? _newDesc;
     private CalendarEventType _newType = CalendarEventType.Meeting;
@@ -252,15 +297,30 @@
     private TimeSpan? _newStartTime = TimeSpan.FromHours(9);
     private TimeSpan? _newEndTime = TimeSpan.FromHours(10);
     private bool _newAllDay;
+    private IEnumerable<string> _newParticipantIds = [];
+    private Guid? _newResourceId;
+    private bool CanManageSelectedEvent => _selectedEvent?.OrganizerId == _currentUserId;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        var usersTask = EmployeeSvc.GetAllAsync();
+        var resourcesTask = BookingSvc.GetResourcesAsync();
+        await Task.WhenAll(usersTask, resourcesTask);
+
+        _users = await usersTask;
+        _resources = await resourcesTask;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
         _loading = true;
         BuildCalendarCells();
 
-        var from = new DateTime(_currentDate.Year, _currentDate.Month, 1, 0, 0, 0, DateTimeKind.Local);
+        var from = new DateTime(_currentDate.Year, _currentDate.Month, 1, 0, 0, 0, DateTimeKind.Unspecified);
         var to = from.AddMonths(1).AddTicks(-1);
 
         try
@@ -321,6 +381,8 @@
         _newStartTime = TimeSpan.FromHours(9);
         _newEndTime = TimeSpan.FromHours(10);
         _newAllDay = false;
+        _newParticipantIds = [];
+        _newResourceId = null;
         _createOpen = true;
     }
 
@@ -344,6 +406,8 @@
         _newAllDay = _selectedEvent.IsAllDay;
         _newStartTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(9) : _selectedEvent.StartTime.TimeOfDay;
         _newEndTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(10) : _selectedEvent.EndTime.TimeOfDay;
+        _newParticipantIds = _selectedEvent.Participants.Select(p => p.UserId).ToArray();
+        _newResourceId = _selectedEvent.ResourceId;
         _detailOpen = false;
         _createOpen = true;
     }
@@ -378,28 +442,39 @@
 
         var editingEventId = _editingEventId;
 
-        if (editingEventId.HasValue)
+        try
         {
-            await CalendarSvc.UpdateAsync(editingEventId.Value, new UpdateCalendarEventRequest(
-                _newTitle,
-                _newDesc,
-                start,
-                end,
-                _newAllDay,
-                _selectedEvent?.Color ?? "#579DFF",
-                _newType,
-                _selectedEvent?.ResourceId));
+            if (editingEventId.HasValue)
+            {
+                await CalendarSvc.UpdateAsync(editingEventId.Value, new UpdateCalendarEventRequest(
+                    _newTitle,
+                    _newDesc,
+                    start,
+                    end,
+                    _newAllDay,
+                    _selectedEvent?.Color ?? "#579DFF",
+                    _newType,
+                    _newResourceId,
+                    _newParticipantIds.ToArray()));
+            }
+            else
+            {
+                await CalendarSvc.CreateAsync(new CreateCalendarEventRequest(
+                    _newTitle,
+                    _newDesc,
+                    start,
+                    end,
+                    _newAllDay,
+                    "#579DFF",
+                    _newType,
+                    _newResourceId,
+                    _newParticipantIds.ToArray()));
+            }
         }
-        else
+        catch (InvalidOperationException ex)
         {
-            await CalendarSvc.CreateAsync(new CreateCalendarEventRequest(
-                _newTitle,
-                _newDesc,
-                start,
-                end,
-                _newAllDay,
-                "#579DFF",
-                _newType));
+            Snackbar.Add(ExtractErrorMessage(ex.Message), Severity.Warning);
+            return;
         }
 
         _createOpen = false;
@@ -439,6 +514,31 @@
 
     private static string GetEventTimeRange(CalendarEventDto ev)
         => KyrgyzstanTime.FormatDateTimeRange(ev.StartTime, ev.EndTime);
+
+    private string FormatUserSelectValue(string userId)
+        => _users.FirstOrDefault(user => user.Id == userId)?.UserName ?? userId;
+
+    private string FormatSelectedUsersText(List<string> userIds)
+        => userIds.Count == 0
+            ? string.Empty
+            : string.Join(", ", userIds.Select(FormatUserSelectValue));
+
+    private string FormatResourceSelectValue(Guid? resourceId)
+        => resourceId.HasValue
+            ? _resources.FirstOrDefault(resource => resource.Id == resourceId.Value) is { } resource
+                ? FormatResourceName(resource)
+                : resourceId.Value.ToString()
+            : string.Empty;
+
+    private string FormatResourceName(Resource resource)
+        => string.IsNullOrWhiteSpace(resource.Location)
+            ? resource.Name
+            : $"{resource.Name} · {resource.Location}";
+
+    private static string ExtractErrorMessage(string raw)
+        => raw.Contains("Кабинет уже забронирован", StringComparison.OrdinalIgnoreCase)
+            ? "Кабинет уже забронирован на это время"
+            : raw;
 
     private record CalendarCell(DateTime Date, bool IsCurrentMonth);
 }

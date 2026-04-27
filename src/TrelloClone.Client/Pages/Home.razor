@@ -66,6 +66,13 @@
                           @onclick="() => OpenBoard(board.Id)">
                     <div class="board-card-modern__bg"></div>
 
+                    <div class="board-card-modern__delete" @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                       Size="Size.Small"
+                                       Color="Color.Inherit"
+                                       OnClick="@(() => ConfirmDeleteBoardAsync(board))" />
+                    </div>
+
                     <div class="board-card-modern__content">
                         <div class="board-card-modern__badge">
                             @board.Title[0].ToString().ToUpper()
@@ -134,5 +141,21 @@
             _boards.Insert(0, newBoard);
             Snackbar.Add(L["home_create_board"] + "!", Severity.Success);
         }
+    }
+
+    private async Task ConfirmDeleteBoardAsync(Board board)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["home_delete_board"],
+            string.Format(L["home_delete_board_confirm"], board.Title),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed != true)
+            return;
+
+        await BoardService.DeleteBoardAsync(board.Id);
+        _boards.Remove(board);
+        Snackbar.Add(L["home_board_deleted"], Severity.Info);
     }
 }

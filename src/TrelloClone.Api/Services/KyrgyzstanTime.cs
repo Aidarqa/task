@@ -2,47 +2,39 @@ namespace TrelloClone.Api.Services;
 
 public static class KyrgyzstanTime
 {
-    private static readonly TimeZoneInfo TimeZone = ResolveTimeZone();
+    private static readonly TimeSpan UtcOffset = TimeSpan.FromHours(6);
+
+    public const string TimeZoneId = "Asia/Bishkek";
 
     public static DateTime Now => ConvertFromUtc(DateTime.UtcNow);
 
     public static DateTime Today => Now.Date;
 
+    public static DateTime TodayUtcStart => ConvertToUtc(Today);
+
+    public static DateTime TomorrowUtcStart => TodayUtcStart.AddDays(1);
+
     public static DateTime ConvertFromUtc(DateTime value)
     {
-        var utcValue = value.Kind switch
-        {
-            DateTimeKind.Utc => value,
-            DateTimeKind.Local => value.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-        };
+        return DateTime.SpecifyKind(NormalizeUtc(value) + UtcOffset, DateTimeKind.Unspecified);
+    }
 
-        return TimeZoneInfo.ConvertTimeFromUtc(utcValue, TimeZone);
+    public static DateTime ConvertToUtc(DateTime value)
+    {
+        if (value.Kind == DateTimeKind.Utc)
+            return value;
+
+        var utcValue = DateTime.SpecifyKind(value, DateTimeKind.Unspecified) - UtcOffset;
+        return DateTime.SpecifyKind(utcValue, DateTimeKind.Utc);
     }
 
     public static string FormatDateTime(DateTime value, string format)
         => ConvertFromUtc(value).ToString(format);
 
-    private static TimeZoneInfo ResolveTimeZone()
-    {
-        foreach (var timeZoneId in new[] { "Asia/Bishkek", "Central Asia Standard Time" })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-            }
-            catch (TimeZoneNotFoundException)
-            {
-            }
-            catch (InvalidTimeZoneException)
-            {
-            }
-        }
+    public static DateTime NormalizeUtc(DateTime value)
+        => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
-        return TimeZoneInfo.CreateCustomTimeZone(
-            "Asia/Bishkek",
-            TimeSpan.FromHours(6),
-            "Kyrgyzstan Time",
-            "Kyrgyzstan Time");
-    }
+    public static DateTime? NormalizeUtc(DateTime? value)
+        => value.HasValue ? NormalizeUtc(value.Value) : null;
+
 }

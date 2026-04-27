@@ -118,6 +118,9 @@ public class ChatClientService : IAsyncDisposable
     public async Task DeleteMessageAsync(Guid chatId, Guid msgId)
         => (await _http.DeleteAsync($"api/chats/{chatId}/messages/{msgId}")).EnsureSuccessStatusCode();
 
+    public async Task MarkReadAsync(Guid chatId)
+        => (await _http.PutAsync($"api/chats/{chatId}/read", null)).EnsureSuccessStatusCode();
+
     public async Task DeleteChatAsync(Guid chatId)
         => (await _http.DeleteAsync($"api/chats/{chatId}")).EnsureSuccessStatusCode();
 

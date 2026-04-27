@@ -102,7 +102,8 @@ public record UpdateCalendarEventRequest(
     bool IsAllDay,
     string Color,
     CalendarEventType EventType,
-    Guid? ResourceId
+    Guid? ResourceId,
+    string[]? ParticipantIds = null
 );
 
 public record CalendarEventDto(
@@ -177,7 +178,9 @@ public record CreateProjectRequest(
     string? Description,
     string Color = "#579DFF",
     DateTime? StartDate = null,
-    DateTime? EndDate = null
+    DateTime? EndDate = null,
+    ProjectVisibility Visibility = ProjectVisibility.AllUsers,
+    string[]? MemberIds = null
 );
 
 public record UpdateProjectRequest(
@@ -186,7 +189,9 @@ public record UpdateProjectRequest(
     string Color,
     DateTime? StartDate,
     DateTime? EndDate,
-    ProjectStatus Status
+    ProjectStatus Status,
+    ProjectVisibility Visibility,
+    string[]? MemberIds
 );
 
 // ── Dashboard ─────────────────────────────────────────────

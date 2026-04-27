@@ -39,10 +39,22 @@
                                    Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.Clear"
                                    OnClick="ClearProjectFilter">
-                            @L["tasks_all_projects"]
+                            @L["tasks_without_project"]
                         </MudButton>
                     </div>
                 }
+                @* else if (IsWithoutProjectMode)
+                {
+                    <div class="tasks-project-context">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="Color.Default"
+                                 Variant="Variant.Outlined"
+                                 Class="task-project-chip">
+                            @L["tasks_without_project"]
+                        </MudChip>
+                    </div>
+                } *@
             </div>
         </div>
 
@@ -67,16 +79,18 @@
 
     <MudPaper Class="tasks-filter-panel" Elevation="0">
         <MudStack AlignItems="AlignItems.Center" Row Justify="Justify.FlexEnd">
-                <MudSelect T="Guid?"
-                           @bind-Value="_filterProjectId"
+                <MudSelect T="string"
+                           @bind-Value="_projectFilterValue"
                            Label="@L["tasks_filter_project"]"
                            Dense="true"
                            Margin="Margin.Dense"
                            Variant="Variant.Outlined"
-                           Clearable="true">
+                           ToStringFunc="FormatProjectSelectValue">
+                    <MudSelectItem T="string" Value="@ProjectFilterNone">@L["tasks_without_project"]</MudSelectItem>
+                    <MudSelectItem T="string" Value="@ProjectFilterAll">@L["tasks_all_tasks"]</MudSelectItem>
                     @foreach (var project in _projects.OrderBy(p => p.Name))
                     {
-                        <MudSelectItem T="Guid?" Value="@((Guid?)project.Id)">@project.Name</MudSelectItem>
+                        <MudSelectItem T="string" Value="@project.Id.ToString()">@project.Name</MudSelectItem>
                     }
                 </MudSelect>
 
@@ -101,12 +115,24 @@
         </MudStack>
     </MudPaper>
 
-    @if (_currentProject is not null)
+    @* @if (_currentProject is not null)
     {
         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
             @string.Format(L["tasks_project_context"], _currentProject.Name)
         </MudAlert>
+    } *@
+    @* else if (IsWithoutProjectMode)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+            @L["tasks_without_project_context"]
+        </MudAlert>
     }
+    else if (IsAllTasksMode)
+    {
+        <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true">
+            @L["tasks_all_tasks_context"]
+        </MudAlert>
+    } *@
 
     <MudGrid Class="tasks-content-grid">
         <MudItem xs="12" lg="7" Class="tasks-column">
@@ -114,19 +140,23 @@
                 <div class="tasks-scroll-panel tasks-list-scroll">
                     @if (_loading)
                     {
-                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center">
+                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center" Elevation="0">
                             <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
                             <MudText Typo="Typo.body1" Class="mt-3">@L["tasks_loading"]</MudText>
                         </MudPaper>
                     }
                     else if (_tasks.Count == 0)
                     {
-                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center">
+                        <MudPaper Class="pa-6 d-flex flex-column align-center justify-center" Elevation="0">
                             <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" />
                             <MudText Typo="Typo.h6" Class="mt-3">@L["tasks_empty_filtered"]</MudText>
                             @if (_currentProject is not null)
                             {
                                 <MudText Typo="Typo.body2" Class="mt-1">@string.Format(L["tasks_empty_project"], _currentProject.Name)</MudText>
+                            }
+                            else if (IsWithoutProjectMode)
+                            {
+                                <MudText Typo="Typo.body2" Class="mt-1">@L["tasks_empty_without_project"]</MudText>
                             }
                         </MudPaper>
                     }
@@ -169,7 +199,7 @@
                                                          Size="Size.Small"
                                                          Color="@(task.DueDate < KyrgyzstanTime.Now && task.Status != WorkTaskStatus.Done ? Color.Error : Color.Default)"
                                                          Variant="Variant.Outlined">
-                                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateTime(task.DueDate.Value))
+                                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateSmart(task.DueDate.Value))
                                                 </MudChip>
                                             }
                                         </div>
@@ -371,20 +401,20 @@
                             @if (_selectedTask.DueDate.HasValue)
                             {
                                 <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
-                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateTime(_selectedTask.DueDate.Value))
+                                    @string.Format(L["tasks_due_until"], KyrgyzstanTime.FormatDateSmart(_selectedTask.DueDate.Value))
                                 </MudChip>
                             }
                         </div>
 
                         @if (!string.IsNullOrWhiteSpace(_selectedTask.Description))
                         {
-                            <MudPaper Class="pa-3" Outlined="true">
+                                <MudPaper Class="pa-3" Outlined="true" Elevation="0">
                                 <MudText Typo="Typo.subtitle2">@L["tasks_description"]</MudText>
                                 <MudText Typo="Typo.body2">@_selectedTask.Description</MudText>
                             </MudPaper>
                         }
 
-                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudPaper Class="pa-3" Outlined="true" Elevation="0">
                             <MudStack Spacing="2">
                                 <MudText Typo="Typo.subtitle2">@L["tasks_actions"]</MudText>
 
@@ -446,7 +476,7 @@
                             </MudStack>
                         </MudPaper>
 
-                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudPaper Class="pa-3" Outlined="true" Elevation="0">
                             <MudStack Spacing="2">
                                 <MudText Typo="Typo.subtitle2">@L["tasks_files"]</MudText>
                                 <div class="task-files-toolbar">
@@ -475,7 +505,7 @@
                                 {
                                     @foreach (var attachment in OrderedAttachments)
                                     {
-                                        <MudPaper Class="task-attachment-card" Outlined="true">
+                                            <MudPaper Class="task-attachment-card" Outlined="true" Elevation="0">
                                             <div class="task-attachment-row">
                                                 <button type="button"
                                                         @onclick="@(() => DownloadAttachmentAsync(attachment))"
@@ -523,7 +553,7 @@
                             </MudStack>
                         </MudPaper>
 
-                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudPaper Class="pa-3" Outlined="true" Elevation="0">
                             <MudStack Spacing="2">
                                 <MudText Typo="Typo.subtitle2">@L["tasks_checklist"]</MudText>
 
@@ -551,7 +581,7 @@
                             </MudStack>
                         </MudPaper>
 
-                        <MudPaper Class="pa-3" Outlined="true">
+                            <MudPaper Class="pa-3" Outlined="true" Elevation="0">
                             <MudStack Spacing="2">
                                 <MudText Typo="Typo.subtitle2">@L["tasks_comments"]</MudText>
 
@@ -629,7 +659,13 @@
 
             <MudDatePicker @bind-Date="_newDueDate"
                            Label="@L["tasks_due"]"
-                           Variant="Variant.Outlined" />
+                           Variant="Variant.Outlined"
+                           Clearable="true" />
+            <MudTimePicker @bind-Time="_newDueTime"
+                           Label="@L["tasks_due_time"]"
+                           Variant="Variant.Outlined"
+                           AmPm="false"
+                           Clearable="true" />
         </MudStack>
     </DialogContent>
 
@@ -646,7 +682,10 @@
 @code {
     [Parameter] public Guid? TaskId { get; set; }
     [SupplyParameterFromQuery(Name = "project")] public Guid? ProjectId { get; set; }
+    [SupplyParameterFromQuery(Name = "scope")] public string? Scope { get; set; }
 
+    private const string ProjectFilterNone = "none";
+    private const string ProjectFilterAll = "all";
     private List<WorkTaskSummary> _tasks = [];
     private List<UserDto> _users = [];
     private List<Project> _projects = [];
@@ -655,7 +694,7 @@
     private bool _loadingTask;
     private string _view = "list";
     private string? _filterStatus;
-    private Guid? _filterProjectId;
+    private string _projectFilterValue = ProjectFilterNone;
     private bool _myOnly;
     private bool _createOpen;
     private string _newTitle = "";
@@ -663,6 +702,7 @@
     private WorkTaskPriority _newPriority = WorkTaskPriority.Medium;
     private string? _newAssigneeId;
     private DateTime? _newDueDate;
+    private TimeSpan? _newDueTime;
     private string _currentUserId = string.Empty;
     private WorkTaskStatus _selectedStatus;
     private string _newComment = string.Empty;
@@ -670,6 +710,7 @@
     private bool _pinUploads = true;
     private Project? _currentProject;
     private Guid? _lastProjectId;
+    private string? _lastScope;
     private int _currentPage = 1;
     private const int PageSize = 8;
 
@@ -686,6 +727,9 @@
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_tasks.Count / (double)PageSize));
     private int PaginationStart => _tasks.Count == 0 ? 0 : ((_currentPage - 1) * PageSize) + 1;
     private int PaginationEnd => Math.Min(_currentPage * PageSize, _tasks.Count);
+    private bool IsWithoutProjectMode => _projectFilterValue == ProjectFilterNone;
+    private bool IsAllTasksMode => _projectFilterValue == ProjectFilterAll;
+    private Guid? SelectedProjectId => Guid.TryParse(_projectFilterValue, out var projectId) ? projectId : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -699,9 +743,10 @@
 
         _users = await usersTask;
         _projects = await projectsTask;
-        _filterProjectId = ProjectId;
+        SetProjectFilterFromRoute();
         _currentProject = ResolveCurrentProject();
         _lastProjectId = ProjectId;
+        _lastScope = Scope;
 
         await LoadTasksAsync();
         await LoadSelectedTaskAsync();
@@ -709,12 +754,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        _filterProjectId = ProjectId;
+        SetProjectFilterFromRoute();
         _currentProject = ResolveCurrentProject();
 
-        if (_lastProjectId != ProjectId && _projects.Count > 0)
+        if ((_lastProjectId != ProjectId || _lastScope != Scope) && _projects.Count > 0)
         {
             _lastProjectId = ProjectId;
+            _lastScope = Scope;
             await LoadTasksAsync();
         }
 
@@ -728,7 +774,9 @@
         {
             _tasks = _myOnly
                 ? await TaskSvc.GetMyAsync()
-                : await TaskSvc.GetAllAsync(_filterStatus, null, _filterProjectId);
+                : await TaskSvc.GetAllAsync(_filterStatus, null, SelectedProjectId, IsWithoutProjectMode);
+
+            ApplyClientTaskFilters();
 
             NormalizePagination();
         }
@@ -764,14 +812,14 @@
     }
 
     private void SelectTask(Guid id)
-        => Nav.NavigateTo(ProjectId.HasValue ? $"/tasks/{id}?project={ProjectId}" : $"/tasks/{id}");
+        => Nav.NavigateTo(BuildTasksUrl(id));
 
     private void CloseTask()
-        => Nav.NavigateTo(ProjectId.HasValue ? $"/tasks?project={ProjectId}" : "/tasks");
+        => Nav.NavigateTo(BuildTasksUrl());
 
     private void ClearProjectFilter()
     {
-        _filterProjectId = null;
+        _projectFilterValue = ProjectFilterNone;
         _currentProject = null;
         Nav.NavigateTo("/tasks");
     }
@@ -783,6 +831,7 @@
         _newPriority = WorkTaskPriority.Medium;
         _newAssigneeId = null;
         _newDueDate = null;
+        _newDueTime = null;
         _createOpen = true;
     }
 
@@ -791,15 +840,19 @@
         if (string.IsNullOrWhiteSpace(_newTitle))
             return;
 
+        var dueDate = _newDueDate.HasValue
+            ? _newDueDate.Value.Date + (_newDueTime ?? TimeSpan.Zero)
+            : (DateTime?)null;
+
         await TaskSvc.CreateAsync(new CreateWorkTaskRequest(
             _newTitle,
             _newDesc,
             _newPriority,
             _newAssigneeId,
             null,
-            _newDueDate,
+            dueDate,
             null,
-            ProjectId));
+            SelectedProjectId));
 
         _createOpen = false;
         Snackbar.Add(L["tasks_created"], Severity.Success);
@@ -810,16 +863,69 @@
     {
         _currentPage = 1;
         _currentProject = ResolveCurrentProject();
+        var nextUrl = BuildTasksUrl(TaskId);
+        var currentRelativeUrl = Nav.ToBaseRelativePath(Nav.Uri);
+        if (!string.Equals(currentRelativeUrl, nextUrl.TrimStart('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo(nextUrl);
+            return;
+        }
+
         await LoadTasksAsync();
     }
 
     private Project? ResolveCurrentProject()
-        => _filterProjectId.HasValue ? _projects.FirstOrDefault(project => project.Id == _filterProjectId.Value) : null;
+        => SelectedProjectId.HasValue ? _projects.FirstOrDefault(project => project.Id == SelectedProjectId.Value) : null;
 
     private string? TryGetProjectName(Guid? projectId)
         => projectId.HasValue
             ? _projects.FirstOrDefault(project => project.Id == projectId.Value)?.Name
             : null;
+
+    private string FormatProjectSelectValue(string value)
+        => value switch
+        {
+            ProjectFilterNone => L["tasks_without_project"],
+            ProjectFilterAll => L["tasks_all_tasks"],
+            _ => Guid.TryParse(value, out var projectId) ? TryGetProjectName(projectId) ?? value : value
+        };
+
+    private void SetProjectFilterFromRoute()
+    {
+        if (ProjectId.HasValue)
+        {
+            _projectFilterValue = ProjectId.Value.ToString();
+            return;
+        }
+
+        _projectFilterValue = string.Equals(Scope, ProjectFilterAll, StringComparison.OrdinalIgnoreCase)
+            ? ProjectFilterAll
+            : ProjectFilterNone;
+    }
+
+    private string BuildTasksUrl(Guid? taskId = null)
+    {
+        var path = taskId.HasValue ? $"/tasks/{taskId}" : "/tasks";
+        if (SelectedProjectId.HasValue)
+            return $"{path}?project={SelectedProjectId}";
+        if (IsAllTasksMode)
+            return $"{path}?scope={ProjectFilterAll}";
+        return path;
+    }
+
+    private void ApplyClientTaskFilters()
+    {
+        if (_myOnly)
+        {
+            if (IsWithoutProjectMode)
+                _tasks = _tasks.Where(task => task.ProjectId is null).ToList();
+            else if (SelectedProjectId.HasValue)
+                _tasks = _tasks.Where(task => task.ProjectId == SelectedProjectId).ToList();
+
+            if (!string.IsNullOrWhiteSpace(_filterStatus) && Enum.TryParse<WorkTaskStatus>(_filterStatus, out var parsedStatus))
+                _tasks = _tasks.Where(task => task.Status == parsedStatus).ToList();
+        }
+    }
 
     private bool CanTakeInWork(WorkTaskSummary task)
         => task.AssigneeId == _currentUserId && task.Status == WorkTaskStatus.New;

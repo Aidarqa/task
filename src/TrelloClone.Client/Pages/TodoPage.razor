@@ -99,7 +99,7 @@
                                             var dueClass = $"todo-due-modern {(item.DueDate < KyrgyzstanTime.Now ? "todo-due-modern--overdue" : "")}";
 
                                             <span class="@dueClass">
-                                                @KyrgyzstanTime.FormatDateTime(item.DueDate.Value)
+                                                @KyrgyzstanTime.FormatDateSmart(item.DueDate.Value)
                                             </span>
                                         }
 

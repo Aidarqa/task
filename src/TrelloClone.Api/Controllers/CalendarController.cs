@@ -23,10 +23,16 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
                         e.Participants.Any(p => p.UserId == CurrentUserId));
 
         if (from.HasValue)
-            q = q.Where(e => e.EndTime >= from.Value);
+        {
+            var fromUtc = KyrgyzstanTime.NormalizeUtc(from.Value);
+            q = q.Where(e => e.EndTime >= fromUtc);
+        }
 
         if (to.HasValue)
-            q = q.Where(e => e.StartTime <= to.Value);
+        {
+            var toUtc = KyrgyzstanTime.NormalizeUtc(to.Value);
+            q = q.Where(e => e.StartTime <= toUtc);
+        }
 
         var events = await q.OrderBy(e => e.StartTime).ToListAsync();
         var resources = await db.Resources.ToDictionaryAsync(r => r.Id, r => r.Name);
@@ -44,6 +50,9 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
         if (ev is null)
             return NotFound();
 
+        if (ev.OrganizerId != CurrentUserId && !ev.Participants.Any(p => p.UserId == CurrentUserId))
+            return Forbid();
+
         var resources = await db.Resources.ToDictionaryAsync(r => r.Id, r => r.Name);
         return Ok(ToDto(ev, resources));
     }
@@ -51,12 +60,18 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
     [HttpPost]
     public async Task<IActionResult> Create(CreateCalendarEventRequest req)
     {
+        var start = KyrgyzstanTime.NormalizeUtc(req.StartTime);
+        var end = KyrgyzstanTime.NormalizeUtc(req.EndTime);
+
+        if (req.ResourceId.HasValue && await HasResourceConflictAsync(req.ResourceId.Value, start, end))
+            return Conflict(new { error = "Кабинет уже забронирован на это время" });
+
         var ev = new CalendarEvent
         {
             Title = req.Title,
             Description = req.Description,
-            StartTime = req.StartTime,
-            EndTime = req.EndTime,
+            StartTime = start,
+            EndTime = end,
             IsAllDay = req.IsAllDay,
             Color = req.Color,
             EventType = req.EventType,
@@ -65,27 +80,22 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
             ResourceId = req.ResourceId
         };
 
-        if (req.ParticipantIds is { Length: > 0 })
-        {
-            var users = await db.Users.Where(u => req.ParticipantIds.Contains(u.Id)).ToListAsync();
-            ev.Participants = users.Select(u => new EventParticipant
-            {
-                EventId = ev.Id,
-                UserId = u.Id,
-                UserName = u.UserName
-            }).ToList();
-        }
+        ev.Participants = await BuildParticipantsAsync(ev.Id, req.ParticipantIds);
 
         db.CalendarEvents.Add(ev);
+        if (req.ResourceId.HasValue)
+            db.Bookings.Add(CreateBooking(ev));
+
         await db.SaveChangesAsync();
 
         var participantIds = ev.Participants.Select(p => p.UserId)
             .Where(uid => uid != CurrentUserId);
 
+        var startLocal = KyrgyzstanTime.ConvertFromUtc(ev.StartTime);
         await notif.SendToManyAsync(
             participantIds,
             "Приглашение на событие",
-            $"«{ev.Title}» — {ev.StartTime:dd.MM.yyyy HH:mm}",
+            $"«{ev.Title}» — {startLocal:dd.MM.yyyy HH:mm}",
             NotificationType.Event,
             "/calendar",
             ev.Id.ToString());
@@ -107,23 +117,34 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
         if (ev.OrganizerId != CurrentUserId)
             return Forbid();
 
+        var start = KyrgyzstanTime.NormalizeUtc(req.StartTime);
+        var end = KyrgyzstanTime.NormalizeUtc(req.EndTime);
+
+        if (req.ResourceId.HasValue && await HasResourceConflictAsync(req.ResourceId.Value, start, end, ev.Id))
+            return Conflict(new { error = "Кабинет уже забронирован на это время" });
+
         ev.Title = req.Title;
         ev.Description = req.Description;
-        ev.StartTime = req.StartTime;
-        ev.EndTime = req.EndTime;
+        ev.StartTime = start;
+        ev.EndTime = end;
         ev.IsAllDay = req.IsAllDay;
         ev.Color = req.Color;
         ev.EventType = req.EventType;
         ev.ResourceId = req.ResourceId;
+        ev.Participants.Clear();
+        ev.Participants.AddRange(await BuildParticipantsAsync(ev.Id, req.ParticipantIds));
+
+        await SyncBookingAsync(ev);
         await db.SaveChangesAsync();
 
         var participantIds = ev.Participants.Select(p => p.UserId)
             .Where(uid => uid != CurrentUserId);
 
+        var startLocalUpd = KyrgyzstanTime.ConvertFromUtc(ev.StartTime);
         await notif.SendToManyAsync(
             participantIds,
             "Событие изменено",
-            $"«{ev.Title}» — {ev.StartTime:dd.MM.yyyy HH:mm}",
+            $"«{ev.Title}» — {startLocalUpd:dd.MM.yyyy HH:mm}",
             NotificationType.Event,
             "/calendar",
             ev.Id.ToString());
@@ -142,9 +163,76 @@ public class CalendarController(AppDbContext db, INotificationService notif) : C
         if (ev.OrganizerId != CurrentUserId)
             return Forbid();
 
+        await db.Bookings
+            .Where(b => b.EventId == id)
+            .ExecuteDeleteAsync();
+
         db.CalendarEvents.Remove(ev);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task<List<EventParticipant>> BuildParticipantsAsync(Guid eventId, string[]? participantIds)
+    {
+        if (participantIds is not { Length: > 0 })
+            return [];
+
+        var ids = participantIds
+            .Where(id => id != CurrentUserId)
+            .Distinct()
+            .ToArray();
+
+        var users = await db.Users.Where(u => ids.Contains(u.Id)).ToListAsync();
+        return users.Select(u => new EventParticipant
+        {
+            EventId = eventId,
+            UserId = u.Id,
+            UserName = u.UserName ?? u.Email ?? u.Id
+        }).ToList();
+    }
+
+    private async Task<bool> HasResourceConflictAsync(Guid resourceId, DateTime start, DateTime end, Guid? eventId = null)
+        => await db.Bookings.AnyAsync(b =>
+            b.ResourceId == resourceId &&
+            b.Status != BookingStatus.Cancelled &&
+            b.StartTime < end &&
+            b.EndTime > start &&
+            (!eventId.HasValue || b.EventId != eventId.Value));
+
+    private Booking CreateBooking(CalendarEvent ev)
+        => new()
+        {
+            ResourceId = ev.ResourceId!.Value,
+            BookedById = CurrentUserId,
+            BookedByName = CurrentUserName,
+            StartTime = ev.StartTime,
+            EndTime = ev.EndTime,
+            Title = ev.Title,
+            EventId = ev.Id
+        };
+
+    private async Task SyncBookingAsync(CalendarEvent ev)
+    {
+        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.EventId == ev.Id);
+        if (!ev.ResourceId.HasValue)
+        {
+            if (booking is not null)
+                db.Bookings.Remove(booking);
+
+            return;
+        }
+
+        if (booking is null)
+        {
+            db.Bookings.Add(CreateBooking(ev));
+            return;
+        }
+
+        booking.ResourceId = ev.ResourceId.Value;
+        booking.StartTime = ev.StartTime;
+        booking.EndTime = ev.EndTime;
+        booking.Title = ev.Title;
+        booking.Status = BookingStatus.Confirmed;
     }
 
     private static CalendarEventDto ToDto(CalendarEvent e, Dictionary<Guid, string> resources) => new(

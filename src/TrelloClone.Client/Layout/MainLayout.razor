@@ -29,8 +29,8 @@
                          TransformOrigin="Origin.TopRight"
                          Dense="true">
                     <ActivatorContent>
-                        <MudBadge Content="@_unreadCount" Color="Color.Error" Dot
-                                  Overlap="true" Visible="@(_unreadCount > 0)">
+                        <MudBadge Content="@NonChatUnreadCount" Color="Color.Error" Dot
+                                  Overlap="true" Visible="@(NonChatUnreadCount > 0)">
                             <MudIconButton Icon="@Icons.Material.Outlined.Notifications"
                                            Size="Size.Small" />
                         </MudBadge>
@@ -39,10 +39,10 @@
                         <div class="notif-dropdown">
                             <div class="notif-dropdown-header">
                                 <span>@L["notif_title"]</span>
-                                @if (_unreadCount > 0)
+                                @if (NonChatUnreadCount > 0)
                                 {
                                     <MudChip T="string" Size="Size.Small" Color="Color.Error">
-                                        @_unreadCount
+                                        @NonChatUnreadCount
                                     </MudChip>
                                 }
                             </div>
@@ -70,8 +70,13 @@
                                                 {
                                                     <div class="notif-dropdown-body">@n.Body</div>
                                                 }
-                                                <div class="notif-dropdown-time">
-                                                    @KyrgyzstanTime.FormatDateTime(n.CreatedAt)
+                                                <div class="notif-dropdown-meta">
+                                                    <span class="notif-dropdown-type">
+                                                        @GetNotifTypeName(n.NotificationType)
+                                                    </span>
+                                                    <span>
+                                                        @KyrgyzstanTime.FormatDateTime(n.CreatedAt)
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -170,6 +175,7 @@
     private int _chatUnreadCount;
     private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
     private List<NotificationDto> _recentNotifications = [];
+    private readonly HashSet<Guid> _handledNotificationIds = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -191,16 +197,39 @@
             await NotificationSvc.ConnectAsync();
             _unreadCount = await NotificationSvc.GetUnreadCountAsync();
             _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
-            _recentNotifications = (await NotificationSvc.GetAllAsync()).Take(5).ToList();
+            _recentNotifications = (await NotificationSvc.GetAllAsync())
+                .Where(n => n.NotificationType != NotificationType.Chat)
+                .Take(5)
+                .ToList();
+
+            foreach (var notification in _recentNotifications)
+                _handledNotificationIds.Add(notification.Id);
         }
         catch { }
     }
 
     private void OnNotificationReceived(NotificationDto notif)
     {
+        if (!_handledNotificationIds.Add(notif.Id))
+            return;
+
+        if (notif.NotificationType == NotificationType.Chat)
+        {
+            if (!Nav.Uri.Contains("/chats", StringComparison.OrdinalIgnoreCase))
+            {
+                _unreadCount++;
+                _chatUnreadCount++;
+            }
+            else
+            {
+                _ = RefreshCountsAsync();
+            }
+
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
         _unreadCount++;
-        if (notif.NotificationType == NotificationType.Chat && !Nav.Uri.Contains("/chats"))
-            _chatUnreadCount++;
 
         _recentNotifications.Insert(0, notif);
         if (_recentNotifications.Count > 5)
@@ -212,6 +241,11 @@
     }
 
     private async void OnCountChangedHandler()
+    {
+        await RefreshCountsAsync();
+    }
+
+    private async Task RefreshCountsAsync()
     {
         try
         {
@@ -225,10 +259,26 @@
     private void OpenNotification(NotificationDto notif)
     {
         if (!notif.IsRead)
+        {
+            var idx = _recentNotifications.FindIndex(n => n.Id == notif.Id);
+            if (idx >= 0)
+                _recentNotifications[idx] = notif with { IsRead = true };
+
             _ = NotificationSvc.MarkReadAsync(notif.Id);
+        }
 
         Nav.NavigateTo(notif.Link ?? "/notifications");
     }
+
+    private string GetNotifTypeName(NotificationType t) => t switch
+    {
+        NotificationType.Task => L["notif_type_task"],
+        NotificationType.Event => L["notif_type_event"],
+        NotificationType.Booking => L["notif_type_booking"],
+        NotificationType.Chat => L["notif_type_chat"],
+        NotificationType.System => L["notif_type_project"],
+        _ => L["notif_type_system"],
+    };
 
     private static string GetNotifIcon(NotificationType t) => t switch
     {
@@ -254,12 +304,7 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        if (e.Location.Contains("/chats"))
-        {
-            _unreadCount = Math.Max(0, _unreadCount - _chatUnreadCount);
-            _chatUnreadCount = 0;
-        }
-        _ = InvokeAsync(StateHasChanged);
+        _ = RefreshCountsAsync();
     }
 
     private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);

@@ -20,7 +20,7 @@ public class WorkTasksController(
     private string CurrentUserName => User.Identity!.Name!;
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] string? assignee, [FromQuery] Guid? projectId)
+    public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] string? assignee, [FromQuery] Guid? projectId, [FromQuery] bool withoutProject = false)
     {
         var query = BaseTaskQuery()
             .Where(t => t.ParentTaskId == null && (t.AssigneeId == CurrentUserId || t.AuthorId == CurrentUserId));
@@ -31,8 +31,17 @@ public class WorkTasksController(
         if (!string.IsNullOrWhiteSpace(assignee))
             query = query.Where(t => t.AssigneeId == assignee);
 
-        if (projectId.HasValue)
+        if (withoutProject)
+        {
+            query = query.Where(t => t.ProjectId == null);
+        }
+        else if (projectId.HasValue)
+        {
+            if (!await CanAccessProjectAsync(projectId.Value))
+                return Forbid();
+
             query = query.Where(t => t.ProjectId == projectId);
+        }
 
         var tasks = await query
             .OrderByDescending(t => t.UpdatedAt)
@@ -71,14 +80,17 @@ public class WorkTasksController(
     [HttpPost]
     public async Task<IActionResult> Create(CreateWorkTaskRequest req)
     {
+        if (req.ProjectId.HasValue && !await CanAccessProjectAsync(req.ProjectId.Value))
+            return Forbid();
+
         var task = new WorkTask
         {
             Title = req.Title,
             Description = req.Description,
             Priority = req.Priority,
             AssigneeId = req.AssigneeId,
-            StartDate = req.StartDate,
-            DueDate = req.DueDate,
+            StartDate = KyrgyzstanTime.NormalizeUtc(req.StartDate),
+            DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate),
             ParentTaskId = req.ParentTaskId,
             ProjectId = req.ProjectId,
             AuthorId = CurrentUserId,
@@ -126,8 +138,8 @@ public class WorkTasksController(
         task.Status = req.Status;
         task.Priority = req.Priority;
         task.AssigneeId = req.AssigneeId;
-        task.StartDate = req.StartDate;
-        task.DueDate = req.DueDate;
+        task.StartDate = KyrgyzstanTime.NormalizeUtc(req.StartDate);
+        task.DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate);
         task.TagsJson = req.Tags is { Length: > 0 } ? string.Join(",", req.Tags) : null;
         task.UpdatedAt = DateTime.UtcNow;
 
@@ -525,6 +537,12 @@ public class WorkTasksController(
 
     private bool CanAccessTask(WorkTask task)
         => task.AuthorId == CurrentUserId || task.AssigneeId == CurrentUserId;
+
+    private async Task<bool> CanAccessProjectAsync(Guid projectId)
+        => await db.Projects.AnyAsync(p => p.Id == projectId
+            && (p.Visibility == ProjectVisibility.AllUsers
+                || p.OwnerId == CurrentUserId
+                || p.Members.Any(m => m.UserId == CurrentUserId)));
 
     private FileAttachmentDto ToAttachmentDto(FileAttachment attachment)
         => new(

@@ -17,13 +17,24 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     // GET /api/projects
     [HttpGet]
     public async Task<IActionResult> GetAll()
-        => Ok(await db.Projects.OrderByDescending(p => p.CreatedAt).ToListAsync());
+    {
+        var projects = await AccessibleProjects()
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        return Ok(projects);
+    }
 
     // GET /api/projects/{id}
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id)
     {
-        var p = await db.Projects.FindAsync(id);
+        var p = await db.Projects
+            .Include(p => p.Members)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (p is not null && !CanAccess(p))
+            return Forbid();
+
         return p is null ? NotFound() : Ok(p);
     }
 
@@ -34,10 +45,13 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
         var p = new Project
         {
             Name = req.Name, Description = req.Description, Color = req.Color,
-            StartDate = req.StartDate, EndDate = req.EndDate,
-            OwnerId = CurrentUserId, OwnerName = CurrentUserName
+            StartDate = KyrgyzstanTime.NormalizeUtc(req.StartDate), EndDate = KyrgyzstanTime.NormalizeUtc(req.EndDate),
+            OwnerId = CurrentUserId, OwnerName = CurrentUserName,
+            Visibility = req.Visibility
         };
+
         db.Projects.Add(p);
+        await SetMembersAsync(p.Id, req.Visibility, req.MemberIds ?? []);
         await db.SaveChangesAsync();
 
         await notif.SendAsync(CurrentUserId, "Проект создан",
@@ -51,13 +65,18 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, UpdateProjectRequest req)
     {
-        var p = await db.Projects.FindAsync(id);
+        var p = await db.Projects.FirstOrDefaultAsync(p => p.Id == id);
         if (p is null) return NotFound();
+        if (p.OwnerId != CurrentUserId) return Forbid();
 
         var prevStatus = p.Status;
         p.Name = req.Name; p.Description = req.Description; p.Color = req.Color;
-        p.StartDate = req.StartDate; p.EndDate = req.EndDate; p.Status = req.Status;
+        p.StartDate = KyrgyzstanTime.NormalizeUtc(req.StartDate); p.EndDate = KyrgyzstanTime.NormalizeUtc(req.EndDate); p.Status = req.Status;
+        p.Visibility = req.Visibility;
+        await SetMembersAsync(p.Id, req.Visibility, req.MemberIds ?? []);
         await db.SaveChangesAsync();
+
+        await db.Entry(p).Collection(project => project.Members).LoadAsync();
 
         // Notify owner if status changed by someone else
         if (p.Status != prevStatus && p.OwnerId != CurrentUserId)
@@ -74,6 +93,8 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     {
         var p = await db.Projects.FindAsync(id);
         if (p is null) return NotFound();
+        if (p.OwnerId != CurrentUserId) return Forbid();
+
         db.Projects.Remove(p);
         await db.SaveChangesAsync();
         return NoContent();
@@ -83,6 +104,12 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     [HttpGet("{id:guid}/tasks")]
     public async Task<IActionResult> GetTasks(Guid id)
     {
+        var project = await db.Projects
+            .Include(p => p.Members)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (project is null) return NotFound();
+        if (!CanAccess(project)) return Forbid();
+
         var tasks = await db.WorkTasks
             .Include(t => t.SubTasks)
             .Include(t => t.Comments)
@@ -97,5 +124,46 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
             t.AuthorId, t.AuthorName, t.AssigneeId, t.AssigneeName,
             t.DueDate, t.CreatedAt, t.SubTasks.Count, t.Comments.Count,
             t.Checklist.Count, t.Checklist.Count(c => c.IsChecked), t.ProjectId, null)));
+    }
+
+    private IQueryable<Project> AccessibleProjects()
+        => db.Projects
+            .Include(p => p.Members)
+            .Where(p => p.Visibility == ProjectVisibility.AllUsers
+                || p.OwnerId == CurrentUserId
+                || p.Members.Any(m => m.UserId == CurrentUserId));
+
+    private bool CanAccess(Project project)
+        => project.Visibility == ProjectVisibility.AllUsers
+            || project.OwnerId == CurrentUserId
+            || project.Members.Any(m => m.UserId == CurrentUserId);
+
+    private async Task SetMembersAsync(Guid projectId, ProjectVisibility visibility, IEnumerable<string> memberIds)
+    {
+        await db.ProjectMembers
+            .Where(member => member.ProjectId == projectId)
+            .ExecuteDeleteAsync();
+
+        if (visibility != ProjectVisibility.SelectedUsers)
+            return;
+
+        var distinctIds = memberIds
+            .Where(id => !string.IsNullOrWhiteSpace(id) && id != CurrentUserId)
+            .Distinct()
+            .ToArray();
+
+        if (distinctIds.Length == 0)
+            return;
+
+        var users = await db.Users
+            .Where(u => distinctIds.Contains(u.Id))
+            .ToListAsync();
+
+        db.ProjectMembers.AddRange(users.Select(u => new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = u.Id,
+            UserName = u.UserName
+        }));
     }
 }

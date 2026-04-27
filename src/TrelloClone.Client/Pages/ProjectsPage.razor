@@ -2,8 +2,10 @@
 @attribute [Authorize]
 @inherits LocalizedBase
 @inject ProjectService ProjectSvc
+@inject EmployeeService EmployeeSvc
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>@L["proj_title"] - @L["app_name"]</PageTitle>
 
@@ -61,12 +63,19 @@
                             @p.Name[0].ToString().ToUpper()
                         </div>
 
-                        <div @onclick:stopPropagation="true" class="project-delete-btn-modern">
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                           Size="Size.Small"
-                                           Color="Color.Error"
-                                           OnClick="@(() => DeleteProject(p.Id))" />
-                        </div>
+                        @if (CanManage(p))
+                        {
+                            <div @onclick:stopPropagation="true" class="project-card-actions-modern">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Color="Color.Inherit"
+                                               OnClick="@(() => OpenEdit(p))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteProject(p.Id))" />
+                            </div>
+                        }
                     </div>
 
                     <div class="project-card-modern__body">
@@ -82,6 +91,13 @@
                                 @GetStatusLabel(p.Status)
                             </MudChip>
                         </div>
+
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="@(p.Visibility == ProjectVisibility.AllUsers ? Color.Info : Color.Secondary)">
+                            @GetVisibilityLabel(p.Visibility)
+                        </MudChip>
 
                         @if (!string.IsNullOrWhiteSpace(p.Description))
                         {
@@ -144,7 +160,7 @@
 <MudDialog @bind-Visible="_createOpen"
            Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
     <TitleContent>
-        <MudText Typo="Typo.h6">@L["proj_new"]</MudText>
+        <MudText Typo="Typo.h6">@(_editingProjectId.HasValue ? L["proj_edit"] : L["proj_new"])</MudText>
     </TitleContent>
 
     <DialogContent>
@@ -174,6 +190,45 @@
                 </MudItem>
             </MudGrid>
 
+            @if (_editingProjectId.HasValue)
+            {
+                <MudSelect T="ProjectStatus"
+                           @bind-Value="_status"
+                           Label="@L["proj_status"]"
+                           Variant="Variant.Outlined"
+                           Class="mt-3">
+                    <MudSelectItem Value="ProjectStatus.Active">@L["proj_status_active_label"]</MudSelectItem>
+                    <MudSelectItem Value="ProjectStatus.Paused">@L["proj_status_paused_label"]</MudSelectItem>
+                    <MudSelectItem Value="ProjectStatus.Completed">@L["proj_status_completed_label"]</MudSelectItem>
+                    <MudSelectItem Value="ProjectStatus.Archived">@L["proj_status_archived_label"]</MudSelectItem>
+                </MudSelect>
+            }
+
+            <MudSelect T="ProjectVisibility"
+                       @bind-Value="_visibility"
+                       Label="@L["proj_visibility"]"
+                       Variant="Variant.Outlined"
+                       Class="mt-3">
+                <MudSelectItem Value="ProjectVisibility.AllUsers">@L["proj_visibility_all"]</MudSelectItem>
+                <MudSelectItem Value="ProjectVisibility.SelectedUsers">@L["proj_visibility_selected"]</MudSelectItem>
+            </MudSelect>
+
+            @if (_visibility == ProjectVisibility.SelectedUsers)
+            {
+                <MudSelect T="string"
+                           @bind-SelectedValues="_selectedMemberIds"
+                           Label="@L["proj_members"]"
+                           MultiSelection="true"
+                           MultiSelectionTextFunc="FormatSelectedMembers"
+                           Variant="Variant.Outlined"
+                           Class="mt-3">
+                    @foreach (var user in _users.Where(u => u.Id != _currentUserId).OrderBy(u => u.UserName))
+                    {
+                        <MudSelectItem Value="@user.Id">@user.UserName</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
             <div class="project-color-section">
                 <MudText Typo="Typo.body2" Class="project-color-label">@L["proj_color"]</MudText>
 
@@ -197,20 +252,26 @@
         <MudButton OnClick="@(() => _createOpen = false)">
             @L["btn_cancel"]
         </MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync">
-            @L["btn_create"]
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync">
+            @(_editingProjectId.HasValue ? L["btn_save"] : L["btn_create"])
         </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     private List<Project> _projects = [];
+    private List<UserDto> _users = [];
     private bool _loading = true;
     private bool _createOpen;
+    private Guid? _editingProjectId;
     private string _name = "";
     private string? _desc;
     private DateTime? _start;
     private DateTime? _end;
+    private ProjectStatus _status = ProjectStatus.Active;
+    private ProjectVisibility _visibility = ProjectVisibility.AllUsers;
+    private IEnumerable<string> _selectedMemberIds = [];
+    private string _currentUserId = string.Empty;
     private string _color = "#579DFF";
     private readonly string[] _colorOptions = ["#579DFF", "#4CAF50", "#FF5722", "#9C27B0", "#FF9800", "#00BCD4", "#795548"];
 
@@ -219,7 +280,15 @@
         _loading = true;
         try
         {
-            _projects = await ProjectSvc.GetAllAsync();
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+            var projectsTask = ProjectSvc.GetAllAsync();
+            var usersTask = EmployeeSvc.GetAllAsync();
+            await Task.WhenAll(projectsTask, usersTask);
+
+            _projects = await projectsTask;
+            _users = await usersTask;
         }
         finally
         {
@@ -233,27 +302,76 @@
         _desc = null;
         _start = null;
         _end = null;
+        _status = ProjectStatus.Active;
+        _visibility = ProjectVisibility.AllUsers;
+        _selectedMemberIds = [];
+        _editingProjectId = null;
         _color = "#579DFF";
         _createOpen = true;
     }
 
-    private async Task CreateAsync()
+    private void OpenEdit(Project project)
+    {
+        _editingProjectId = project.Id;
+        _name = project.Name;
+        _desc = project.Description;
+        _start = project.StartDate?.Date;
+        _end = project.EndDate?.Date;
+        _status = project.Status;
+        _visibility = project.Visibility;
+        _selectedMemberIds = project.Members.Select(m => m.UserId).ToHashSet();
+        _color = project.Color;
+        _createOpen = true;
+    }
+
+    private async Task SaveAsync()
     {
         if (string.IsNullOrWhiteSpace(_name))
             return;
 
-        var project = await ProjectSvc.CreateAsync(new CreateProjectRequest(
-            _name,
-            _desc,
-            _color,
-            _start,
-            _end));
+        var memberIds = _visibility == ProjectVisibility.SelectedUsers
+            ? _selectedMemberIds.ToArray()
+            : Array.Empty<string>();
 
-        if (project is not null)
-            _projects.Insert(0, project);
+        if (_editingProjectId.HasValue)
+        {
+            var updated = await ProjectSvc.UpdateAsync(_editingProjectId.Value, new UpdateProjectRequest(
+                _name,
+                _desc,
+                _color,
+                _start,
+                _end,
+                _status,
+                _visibility,
+                memberIds));
+
+            if (updated is not null)
+            {
+                var index = _projects.FindIndex(p => p.Id == updated.Id);
+                if (index >= 0)
+                    _projects[index] = updated;
+            }
+
+            Snackbar.Add(L["proj_updated"], Severity.Success);
+        }
+        else
+        {
+            var project = await ProjectSvc.CreateAsync(new CreateProjectRequest(
+                _name,
+                _desc,
+                _color,
+                _start,
+                _end,
+                _visibility,
+                memberIds));
+
+            if (project is not null)
+                _projects.Insert(0, project);
+
+            Snackbar.Add(L["proj_created"], Severity.Success);
+        }
 
         _createOpen = false;
-        Snackbar.Add(L["proj_created"], Severity.Success);
     }
 
     private async Task DeleteProject(Guid id)
@@ -262,8 +380,11 @@
         _projects.RemoveAll(p => p.Id == id);
     }
 
+    private bool CanManage(Project project)
+        => project.OwnerId == _currentUserId;
+
     private static string FormatProjectDate(DateTime value)
-        => KyrgyzstanTime.FormatDateTime(value);
+        => KyrgyzstanTime.FormatDate(value);
 
     private Color GetStatusColor(ProjectStatus status) => status switch
     {
@@ -282,6 +403,25 @@
         ProjectStatus.Archived => L["proj_status_archived_label"],
         _ => status.ToString()
     };
+
+    private string GetVisibilityLabel(ProjectVisibility visibility) => visibility switch
+    {
+        ProjectVisibility.AllUsers => L["proj_visibility_all"],
+        ProjectVisibility.SelectedUsers => L["proj_visibility_selected"],
+        _ => visibility.ToString()
+    };
+
+    private string FormatSelectedMembers(List<string> selectedIds)
+    {
+        if (selectedIds.Count == 0)
+            return string.Empty;
+
+        var names = selectedIds
+            .Select(id => _users.FirstOrDefault(user => user.Id == id)?.UserName ?? id)
+            .OrderBy(name => name);
+
+        return string.Join(", ", names);
+    }
 
     private Color GetTimelineColor(Project project)
     {

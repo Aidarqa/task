@@ -549,6 +549,35 @@ select:-webkit-autofill {
   color: white;
 }
 
+.board-card-modern__delete {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  opacity: 0;
+  transition:
+    opacity 0.18s ease,
+    background 0.18s ease;
+}
+
+.board-card-modern:hover .board-card-modern__delete,
+.board-card-modern__delete:focus-within {
+  opacity: 1;
+}
+
+.board-card-modern__delete:hover {
+  background: rgba(211, 47, 47, 0.9);
+}
+
 .board-card-modern__badge {
   width: 52px;
   height: 52px;
@@ -3680,10 +3709,22 @@ select:-webkit-autofill {
   border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
-.project-delete-btn-modern {
+.project-delete-btn-modern,
+.project-card-actions-modern {
   position: relative;
   z-index: 1;
   margin-left: auto;
+}
+
+.project-card-actions-modern {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  padding: 2px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .project-card-modern__body {
@@ -5179,10 +5220,19 @@ body.light-theme .mud-nav-link.active {
   overflow: hidden;
 }
 
-.notif-dropdown-time {
+.notif-dropdown-meta {
   margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-size: 0.75rem;
   color: var(--mud-palette-text-secondary);
+}
+
+.notif-dropdown-type {
+  font-weight: 700;
+  color: var(--notif-color);
 }
 
 .notif-dropdown .mud-divider {

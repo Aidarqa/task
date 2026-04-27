@@ -2,7 +2,11 @@
 @attribute [Authorize]
 @inherits LocalizedBase
 @inject DashboardService DashboardSvc
+@inject WorkTaskService TaskSvc
 @inject NavigationManager Nav
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>@L["dash_title"] - @L["app_name"]</PageTitle>
 
@@ -109,13 +113,23 @@
                                             : "dashboard-due-modern";
 
                                         <span class="@dueClass">
-                                            @KyrgyzstanTime.FormatDateTime(t.DueDate.Value)
+                                            @KyrgyzstanTime.FormatDateSmart(t.DueDate.Value)
                                         </span>
                                     }
 
                                     <MudChip T="string" Size="Size.Small" Class="@GetPriorityClass(t.Priority)">
                                         @GetPriorityLabel(t.Priority)
                                     </MudChip>
+
+                                    @if (CanDelete(t))
+                                    {
+                                        <div @onclick:stopPropagation="true">
+                                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(() => ConfirmDeleteTaskAsync(t.Id, t.Title))" />
+                                        </div>
+                                    }
                                 </div>
                             </div>
                         }
@@ -163,9 +177,19 @@
 @code {
     private DashboardStats? _stats;
     private bool _loading = true;
+    private string _currentUserId = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+
+        await LoadStatsAsync();
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        _loading = true;
         try
         {
             _stats = await DashboardSvc.GetStatsAsync();
@@ -174,6 +198,25 @@
         {
             _loading = false;
         }
+    }
+
+    private bool CanDelete(WorkTaskSummary task)
+        => task.AuthorId == _currentUserId;
+
+    private async Task ConfirmDeleteTaskAsync(Guid taskId, string taskTitle)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["tasks_delete_title"],
+            string.Format(L["tasks_delete_confirm"], taskTitle),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed != true)
+            return;
+
+        await TaskSvc.DeleteAsync(taskId);
+        Snackbar.Add(L["tasks_deleted"], Severity.Info);
+        await LoadStatsAsync();
     }
 
     private string GetStatusClass(WorkTaskStatus s) => s switch

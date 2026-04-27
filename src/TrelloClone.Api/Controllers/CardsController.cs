@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TrelloClone.Api.Data;
 using TrelloClone.Api.Hubs;
+using TrelloClone.Api.Services;
 using TrelloClone.Shared.Models;
 
 namespace TrelloClone.Api.Controllers;
@@ -30,7 +31,7 @@ public class CardsController(AppDbContext db, IHubContext<BoardHub> hub) : Contr
             Description = req.Description,
             ColumnId = req.ColumnId,
             Priority = req.Priority,
-            DueDate = req.DueDate,
+            DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate),
             Position = maxPos + 1
         };
 
@@ -67,7 +68,7 @@ public class CardsController(AppDbContext db, IHubContext<BoardHub> hub) : Contr
         card.Title = req.Title;
         card.Description = req.Description;
         card.Priority = req.Priority;
-        card.DueDate = req.DueDate;
+        card.DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate);
         card.AssigneeId = req.AssigneeId;
         card.UpdatedAt = DateTime.UtcNow;
 

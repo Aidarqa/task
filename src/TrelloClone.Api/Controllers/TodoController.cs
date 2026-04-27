@@ -65,7 +65,7 @@ public class TodoController(AppDbContext db, INotificationService notif) : Contr
         var list = await db.TodoLists.FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == CurrentUserId);
         if (list is null) return NotFound();
         var count = await db.TodoItems.CountAsync(i => i.TodoListId == id);
-        var item = new TodoItem { TodoListId = id, Text = req.Text, DueDate = req.DueDate, Position = count };
+        var item = new TodoItem { TodoListId = id, Text = req.Text, DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate), Position = count };
         db.TodoItems.Add(item);
         await db.SaveChangesAsync();
         return Ok(item);
@@ -80,7 +80,7 @@ public class TodoController(AppDbContext db, INotificationService notif) : Contr
         if (!await OwnsItemAsync(item)) return Forbid();
 
         var becameCompleted = !item.IsCompleted && req.IsCompleted;
-        item.Text = req.Text; item.IsCompleted = req.IsCompleted; item.DueDate = req.DueDate;
+        item.Text = req.Text; item.IsCompleted = req.IsCompleted; item.DueDate = KyrgyzstanTime.NormalizeUtc(req.DueDate);
         await SyncLinkedTaskAsync(item, becameCompleted);
         await db.SaveChangesAsync();
         return Ok(item);

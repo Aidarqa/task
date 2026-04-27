@@ -36,6 +36,18 @@ public static class SchemaBootstrapper
                 ADD COLUMN IF NOT EXISTS "WorkTaskId" uuid NULL;
 
             CREATE INDEX IF NOT EXISTS "IX_TodoItems_WorkTaskId" ON "TodoItems" ("WorkTaskId");
+
+            ALTER TABLE "Projects"
+                ADD COLUMN IF NOT EXISTS "Visibility" integer NOT NULL DEFAULT 0;
+
+            CREATE TABLE IF NOT EXISTS "ProjectMembers" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "ProjectId" uuid NOT NULL,
+                "UserId" text NOT NULL,
+                "UserName" text NOT NULL,
+                CONSTRAINT "FK_ProjectMembers_Projects_ProjectId" FOREIGN KEY ("ProjectId") REFERENCES "Projects" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_ProjectMembers_ProjectId_UserId" ON "ProjectMembers" ("ProjectId", "UserId");
             """,
             cancellationToken);
     }

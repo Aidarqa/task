@@ -426,7 +426,8 @@
         _shouldScrollToBottom = true;
 
         // Mark chat notifications for this chat as read
-        _ = NotifSvc.MarkChatNotificationsReadAsync(chat.Id);
+        await ChatSvc.MarkReadAsync(chat.Id);
+        await NotifSvc.MarkChatNotificationsReadAsync(chat.Id);
     }
 
     // Called by ChatHub only for the currently joined chat
@@ -438,6 +439,7 @@
             if (evt.Message.SenderId == _currentUserId) return;
             _messages.Add(evt.Message);
             _shouldScrollToBottom = true;
+            _ = ChatSvc.MarkReadAsync(evt.ChatId);
             _ = InvokeAsync(StateHasChanged);
         }
         else
@@ -453,7 +455,12 @@
         if (notif.NotificationType != NotificationType.Chat) return;
         if (notif.RelatedEntityId is null) return;
         if (!Guid.TryParse(notif.RelatedEntityId, out var chatId)) return;
-        if (chatId == _activeChatId) return; // already shown via ChatHub
+        if (chatId == _activeChatId)
+        {
+            _ = ChatSvc.MarkReadAsync(chatId);
+            _ = NotifSvc.MarkReadAsync(notif.Id);
+            return; // already shown via ChatHub
+        }
 
         UpdateChatBadge(chatId, notif.Body);
     }

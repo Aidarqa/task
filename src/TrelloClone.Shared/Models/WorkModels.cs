@@ -208,10 +208,20 @@ public class Project
     public string Color { get; set; } = "#579DFF";
     public string OwnerId { get; set; } = string.Empty;
     public string OwnerName { get; set; } = string.Empty;
+    public ProjectVisibility Visibility { get; set; } = ProjectVisibility.AllUsers;
+    public List<ProjectMember> Members { get; set; } = [];
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public ProjectStatus Status { get; set; } = ProjectStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class ProjectMember
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjectId { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
 }
 
 // ── Enums ────────────────────────────────────────────────
@@ -225,3 +235,4 @@ public enum BookingStatus    { Confirmed, Cancelled, Pending }
 public enum ChatType         { Direct, Group, TaskChat }
 public enum NotificationType { Info, Task, Event, Booking, Chat, System }
 public enum ProjectStatus    { Active, Paused, Completed, Archived }
+public enum ProjectVisibility { AllUsers, SelectedUsers }

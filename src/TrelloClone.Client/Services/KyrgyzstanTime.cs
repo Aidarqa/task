@@ -2,24 +2,37 @@ namespace TrelloClone.Client.Services;
 
 public static class KyrgyzstanTime
 {
-    private static readonly TimeZoneInfo TimeZone = ResolveTimeZone();
+    private static readonly TimeSpan UtcOffset = TimeSpan.FromHours(6);
+
+    public const string TimeZoneId = "Asia/Bishkek";
 
     public static DateTime Now => ConvertFromApi(DateTime.UtcNow);
 
     public static DateTime Today => Now.Date;
 
     public static string FormatDateTime(DateTime value)
-        => value.ToString("dd.MM.yyyy HH:mm");
+        => ForDisplay(value).ToString("dd.MM.yyyy HH:mm");
+
+    public static string FormatDate(DateTime value)
+        => ForDisplay(value).ToString("dd.MM.yyyy");
+
+    public static string FormatDateSmart(DateTime value)
+    {
+        var displayValue = ForDisplay(value);
+        return displayValue.TimeOfDay == TimeSpan.Zero
+            ? displayValue.ToString("dd.MM.yyyy")
+            : displayValue.ToString("dd.MM.yyyy HH:mm");
+    }
 
     public static string FormatDateTimeRange(DateTime start, DateTime end)
         => $"{FormatDateTime(start)} - {FormatDateTime(end)}";
 
     public static DateTime ConvertFromApi(DateTime value)
     {
-        // SQLite drops DateTimeKind, so the deserializer may produce Kind=Local or Unspecified
-        // even though the stored value is always UTC. Force-treat every incoming value as UTC.
+        // API values are UTC by convention. JSON/SQLite can drop or change Kind,
+        // so keep the clock value and apply the fixed Bishkek UTC+6 offset once.
         var utcValue = DateTime.SpecifyKind(value, DateTimeKind.Utc);
-        return TimeZoneInfo.ConvertTimeFromUtc(utcValue, TimeZone);
+        return DateTime.SpecifyKind(utcValue + UtcOffset, DateTimeKind.Unspecified);
     }
 
     public static DateTime? ConvertFromApi(DateTime? value)
@@ -30,35 +43,17 @@ public static class KyrgyzstanTime
         if (value.Kind == DateTimeKind.Utc)
             return value;
 
-        // Treat UI-entered wall-clock values as Kyrgyzstan local time,
+        // Treat UI-entered wall-clock values as Bishkek local time,
         // regardless of the browser or host machine timezone.
-        var kyrgyzLocal = DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(kyrgyzLocal, TimeZone);
+        var utcValue = DateTime.SpecifyKind(value, DateTimeKind.Unspecified) - UtcOffset;
+        return DateTime.SpecifyKind(utcValue, DateTimeKind.Utc);
     }
 
     public static DateTime? ConvertToUtc(DateTime? value)
         => value.HasValue ? ConvertToUtc(value.Value) : null;
 
-    private static TimeZoneInfo ResolveTimeZone()
-    {
-        foreach (var timeZoneId in new[] { "Asia/Bishkek", "Central Asia Standard Time" })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-            }
-            catch (TimeZoneNotFoundException)
-            {
-            }
-            catch (InvalidTimeZoneException)
-            {
-            }
-        }
-
-        return TimeZoneInfo.CreateCustomTimeZone(
-            "Asia/Bishkek",
-            TimeSpan.FromHours(6),
-            "Kyrgyzstan Time",
-            "Kyrgyzstan Time");
-    }
+    private static DateTime ForDisplay(DateTime value)
+        => value.Kind is DateTimeKind.Utc or DateTimeKind.Local
+            ? ConvertFromApi(value)
+            : value;
 }

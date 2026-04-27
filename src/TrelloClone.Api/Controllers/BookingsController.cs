@@ -72,10 +72,16 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
             q = q.Where(b => b.ResourceId == resourceId.Value);
 
         if (from.HasValue)
-            q = q.Where(b => b.EndTime >= from.Value);
+        {
+            var fromUtc = KyrgyzstanTime.NormalizeUtc(from.Value);
+            q = q.Where(b => b.EndTime >= fromUtc);
+        }
 
         if (to.HasValue)
-            q = q.Where(b => b.StartTime <= to.Value);
+        {
+            var toUtc = KyrgyzstanTime.NormalizeUtc(to.Value);
+            q = q.Where(b => b.StartTime <= toUtc);
+        }
 
         var list = await q.OrderBy(b => b.StartTime).ToListAsync();
         return Ok(list.Select(ToDto));
@@ -87,8 +93,8 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         var conflict = await db.Bookings.AnyAsync(b =>
             b.ResourceId == req.ResourceId &&
             b.Status != BookingStatus.Cancelled &&
-            b.StartTime < req.EndTime &&
-            b.EndTime > req.StartTime);
+            b.StartTime < KyrgyzstanTime.NormalizeUtc(req.EndTime) &&
+            b.EndTime > KyrgyzstanTime.NormalizeUtc(req.StartTime));
 
         if (conflict)
             return Conflict(new { error = "Кабинет уже забронирован на это время" });
@@ -98,8 +104,8 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
             ResourceId = req.ResourceId,
             BookedById = CurrentUserId,
             BookedByName = CurrentUserName,
-            StartTime = req.StartTime,
-            EndTime = req.EndTime,
+            StartTime = KyrgyzstanTime.NormalizeUtc(req.StartTime),
+            EndTime = KyrgyzstanTime.NormalizeUtc(req.EndTime),
             Title = req.Title,
             EventId = req.EventId
         };
@@ -110,10 +116,12 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         await db.Entry(booking).Reference(b => b.Resource).LoadAsync();
 
         var resourceName = booking.Resource?.Name ?? "кабинет";
+        var startLocal = KyrgyzstanTime.ConvertFromUtc(booking.StartTime);
+        var endLocal = KyrgyzstanTime.ConvertFromUtc(booking.EndTime);
         await notif.SendAsync(
             CurrentUserId,
             "Бронирование подтверждено",
-            $"{resourceName} — {booking.StartTime:dd.MM.yyyy HH:mm}–{booking.EndTime:dd.MM.yyyy HH:mm}",
+            $"{resourceName} — {startLocal:dd.MM.yyyy HH:mm}–{endLocal:dd.MM.yyyy HH:mm}",
             NotificationType.Booking,
             "/bookings",
             booking.Id.ToString());
@@ -138,10 +146,12 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         await db.SaveChangesAsync();
 
         var resourceName = booking.Resource?.Name ?? "кабинет";
+        var startLocalCnl = KyrgyzstanTime.ConvertFromUtc(booking.StartTime);
+        var endLocalCnl = KyrgyzstanTime.ConvertFromUtc(booking.EndTime);
         await notif.SendAsync(
             CurrentUserId,
             "Бронирование отменено",
-            $"{resourceName} — {booking.StartTime:dd.MM.yyyy HH:mm}–{booking.EndTime:dd.MM.yyyy HH:mm}",
+            $"{resourceName} — {startLocalCnl:dd.MM.yyyy HH:mm}–{endLocalCnl:dd.MM.yyyy HH:mm}",
             NotificationType.Booking,
             "/bookings",
             booking.Id.ToString());

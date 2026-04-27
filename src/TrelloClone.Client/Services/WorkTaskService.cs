@@ -6,12 +6,13 @@ namespace TrelloClone.Client.Services;
 
 public class WorkTaskService(HttpClient http, LocalizationService l)
 {
-    public async Task<List<WorkTaskSummary>> GetAllAsync(string? status = null, string? assignee = null, Guid? projectId = null)
+    public async Task<List<WorkTaskSummary>> GetAllAsync(string? status = null, string? assignee = null, Guid? projectId = null, bool withoutProject = false)
     {
         var url = "api/worktasks";
         var qs = new List<string>();
         if (status is not null) qs.Add($"status={status}");
         if (assignee is not null) qs.Add($"assignee={assignee}");
+        if (withoutProject) qs.Add("withoutProject=true");
         if (projectId.HasValue) qs.Add($"projectId={projectId}");
         if (qs.Count > 0) url += "?" + string.Join("&", qs);
         return (await http.GetFromJsonAsync<List<WorkTaskSummary>>(url) ?? [])

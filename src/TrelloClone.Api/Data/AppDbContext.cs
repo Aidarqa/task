@@ -49,6 +49,7 @@ public class AppDbContext : DbContext
 
     // ── Projects ─────────────────────────────────────────
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -171,6 +172,15 @@ public class AppDbContext : DbContext
         mb.Entity<Notification>(e => { e.HasKey(n => n.Id); });
 
         // ── Project ──────────────────────────────────────
-        mb.Entity<Project>(e => { e.HasKey(p => p.Id); });
+        mb.Entity<Project>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasMany(p => p.Members).WithOne().HasForeignKey(m => m.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+        mb.Entity<ProjectMember>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.ProjectId, m.UserId }).IsUnique();
+        });
     }
 }

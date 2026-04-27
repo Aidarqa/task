@@ -8,8 +8,16 @@ public class CalendarService(HttpClient http)
     public async Task<List<CalendarEventDto>> GetEventsAsync(DateTime? from = null, DateTime? to = null)
     {
         var qs = new List<string>();
-        if (from.HasValue) qs.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
-        if (to.HasValue) qs.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        if (from.HasValue)
+        {
+            var fromUtc = KyrgyzstanTime.ConvertToUtc(from.Value);
+            qs.Add($"from={Uri.EscapeDataString(fromUtc.ToString("O"))}");
+        }
+        if (to.HasValue)
+        {
+            var toUtc = KyrgyzstanTime.ConvertToUtc(to.Value);
+            qs.Add($"to={Uri.EscapeDataString(toUtc.ToString("O"))}");
+        }
         var url = "api/calendar" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
         var events = await http.GetFromJsonAsync<List<CalendarEventDto>>(url) ?? [];
         return events.Select(NormalizeEvent).ToList();
@@ -23,16 +31,30 @@ public class CalendarService(HttpClient http)
 
     public async Task<CalendarEventDto?> CreateAsync(CreateCalendarEventRequest req)
     {
-        var r = await http.PostAsJsonAsync("api/calendar", req);
-        r.EnsureSuccessStatusCode();
+        var normalizedReq = req with
+        {
+            StartTime = KyrgyzstanTime.ConvertToUtc(req.StartTime),
+            EndTime = KyrgyzstanTime.ConvertToUtc(req.EndTime)
+        };
+        var r = await http.PostAsJsonAsync("api/calendar", normalizedReq);
+        if (!r.IsSuccessStatusCode)
+            throw new InvalidOperationException(await r.Content.ReadAsStringAsync());
+
         var ev = await r.Content.ReadFromJsonAsync<CalendarEventDto>();
         return ev is null ? null : NormalizeEvent(ev);
     }
 
     public async Task<CalendarEventDto?> UpdateAsync(Guid id, UpdateCalendarEventRequest req)
     {
-        var r = await http.PutAsJsonAsync($"api/calendar/{id}", req);
-        r.EnsureSuccessStatusCode();
+        var normalizedReq = req with
+        {
+            StartTime = KyrgyzstanTime.ConvertToUtc(req.StartTime),
+            EndTime = KyrgyzstanTime.ConvertToUtc(req.EndTime)
+        };
+        var r = await http.PutAsJsonAsync($"api/calendar/{id}", normalizedReq);
+        if (!r.IsSuccessStatusCode)
+            throw new InvalidOperationException(await r.Content.ReadAsStringAsync());
+
         var ev = await r.Content.ReadFromJsonAsync<CalendarEventDto>();
         return ev is null ? null : NormalizeEvent(ev);
     }
@@ -43,10 +65,7 @@ public class CalendarService(HttpClient http)
     private static CalendarEventDto NormalizeEvent(CalendarEventDto ev)
         => ev with
         {
-            StartTime = NormalizeScheduleTime(ev.StartTime),
-            EndTime = NormalizeScheduleTime(ev.EndTime)
+            StartTime = KyrgyzstanTime.ConvertFromApi(ev.StartTime),
+            EndTime = KyrgyzstanTime.ConvertFromApi(ev.EndTime)
         };
-
-    private static DateTime NormalizeScheduleTime(DateTime value)
-        => value.Kind == DateTimeKind.Utc ? KyrgyzstanTime.ConvertFromApi(value) : value;
 }

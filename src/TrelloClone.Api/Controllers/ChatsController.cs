@@ -225,6 +225,26 @@ public class ChatsController(
         return NoContent();
     }
 
+    [HttpPut("{id:guid}/read")]
+    public async Task<IActionResult> MarkRead(Guid id)
+    {
+        var member = await db.ChatMembers.FirstOrDefaultAsync(m => m.ChatId == id && m.UserId == CurrentUserId);
+        if (member is null)
+            return Forbid();
+
+        member.LastReadAt = DateTime.UtcNow;
+
+        await db.Notifications
+            .Where(n => n.UserId == CurrentUserId
+                     && !n.IsRead
+                     && n.NotificationType == NotificationType.Chat
+                     && n.RelatedEntityId == id.ToString())
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
+
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteChat(Guid id, CancellationToken cancellationToken = default)
     {
@@ -237,6 +257,10 @@ public class ChatsController(
 
         if (!chat.Members.Any(m => m.UserId == CurrentUserId))
             return Forbid();
+
+        await db.Notifications
+            .Where(n => n.NotificationType == NotificationType.Chat && n.RelatedEntityId == id.ToString())
+            .ExecuteDeleteAsync(cancellationToken);
 
         db.Chats.Remove(chat);
         await db.SaveChangesAsync(cancellationToken);

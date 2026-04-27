@@ -56,12 +56,14 @@ public class DeadlineReminderService(
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var notif = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
+        var todayUtcStart = KyrgyzstanTime.TodayUtcStart;
+        var tomorrowUtcStart = KyrgyzstanTime.TomorrowUtcStart;
+        var dayAfterTomorrowUtcStart = tomorrowUtcStart.AddDays(1);
 
         var dueTomorrow = await db.WorkTasks
             .Where(t => t.DueDate.HasValue
-                && t.DueDate.Value.Date == tomorrow
+                && t.DueDate.Value >= tomorrowUtcStart
+                && t.DueDate.Value < dayAfterTomorrowUtcStart
                 && t.Status != WorkTaskStatus.Done
                 && t.Status != WorkTaskStatus.Cancelled
                 && t.AssigneeId != null)
@@ -72,7 +74,8 @@ public class DeadlineReminderService(
             var alreadySent = await db.Notifications.AnyAsync(
                 n => n.RelatedEntityId == task.Id.ToString()
                   && n.Title == "Срок задачи"
-                  && n.CreatedAt.Date == today,
+                  && n.CreatedAt >= todayUtcStart
+                  && n.CreatedAt < tomorrowUtcStart,
                 ct);
 
             if (!alreadySent)
@@ -89,7 +92,7 @@ public class DeadlineReminderService(
 
         var overdue = await db.WorkTasks
             .Where(t => t.DueDate.HasValue
-                && t.DueDate.Value.Date < today
+                && t.DueDate.Value < todayUtcStart
                 && t.Status != WorkTaskStatus.Done
                 && t.Status != WorkTaskStatus.Cancelled
                 && t.AssigneeId != null)
@@ -100,7 +103,8 @@ public class DeadlineReminderService(
             var alreadySent = await db.Notifications.AnyAsync(
                 n => n.RelatedEntityId == task.Id.ToString()
                   && n.Title == "Задача просрочена"
-                  && n.CreatedAt.Date == today,
+                  && n.CreatedAt >= todayUtcStart
+                  && n.CreatedAt < tomorrowUtcStart,
                 ct);
 
             if (!alreadySent)
@@ -117,7 +121,8 @@ public class DeadlineReminderService(
 
         var projectsEndingTomorrow = await db.Projects
             .Where(p => p.EndDate.HasValue
-                && p.EndDate.Value.Date == tomorrow
+                && p.EndDate.Value >= tomorrowUtcStart
+                && p.EndDate.Value < dayAfterTomorrowUtcStart
                 && p.Status == ProjectStatus.Active)
             .ToListAsync(ct);
 
@@ -126,7 +131,8 @@ public class DeadlineReminderService(
             var alreadySent = await db.Notifications.AnyAsync(
                 n => n.RelatedEntityId == project.Id.ToString()
                   && n.Title == "Срок проекта"
-                  && n.CreatedAt.Date == today,
+                  && n.CreatedAt >= todayUtcStart
+                  && n.CreatedAt < tomorrowUtcStart,
                 ct);
 
             if (!alreadySent)
@@ -148,22 +154,22 @@ public class DeadlineReminderService(
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var notif = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
-        var now = KyrgyzstanTime.Now;
-        await SendEventReminderAsync(db, notif, now, 60, 55, 65, ct);
-        await SendEventReminderAsync(db, notif, now, 30, 25, 35, ct);
+        var nowUtc = DateTime.UtcNow;
+        await SendEventReminderAsync(db, notif, nowUtc, 60, 55, 65, ct);
+        await SendEventReminderAsync(db, notif, nowUtc, 30, 25, 35, ct);
     }
 
     private static async Task SendEventReminderAsync(
         AppDbContext db,
         INotificationService notif,
-        DateTime now,
+        DateTime nowUtc,
         int reminderMinutes,
         int windowStartMinutes,
         int windowEndMinutes,
         CancellationToken ct)
     {
-        var windowStart = now.AddMinutes(windowStartMinutes);
-        var windowEnd = now.AddMinutes(windowEndMinutes);
+        var windowStart = nowUtc.AddMinutes(windowStartMinutes);
+        var windowEnd = nowUtc.AddMinutes(windowEndMinutes);
 
         var upcomingEvents = await db.CalendarEvents
             .Include(e => e.Participants)
@@ -177,11 +183,12 @@ public class DeadlineReminderService(
                 .Distinct()
                 .ToList();
 
+            var startLocal = KyrgyzstanTime.ConvertFromUtc(ev.StartTime);
             foreach (var userId in recipients)
             {
                 var body = reminderMinutes == 60
-                    ? $"Через 1 час: \"{ev.Title}\" в {ev.StartTime:dd.MM.yyyy HH:mm}"
-                    : $"Через 30 минут: \"{ev.Title}\" в {ev.StartTime:dd.MM.yyyy HH:mm}";
+                    ? $"Через 1 час: \"{ev.Title}\" в {startLocal:dd.MM.yyyy HH:mm}"
+                    : $"Через 30 минут: \"{ev.Title}\" в {startLocal:dd.MM.yyyy HH:mm}";
 
                 var alreadySent = await db.Notifications.AnyAsync(
                     n => n.RelatedEntityId == ev.Id.ToString()

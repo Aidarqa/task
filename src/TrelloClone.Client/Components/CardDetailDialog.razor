@@ -184,6 +184,10 @@
                             <MudDatePicker @bind-Date="_dueDate" Variant="Variant.Outlined"
                                            Dense="true" Placeholder="@L["board_due_date_placeholder"]"
                                            Clearable="true" />
+                            <MudTimePicker @bind-Time="_dueTime" Variant="Variant.Outlined"
+                                           Dense="true" AmPm="false"
+                                           Clearable="true"
+                                           Placeholder="@L["tasks_due_time"]" />
                         </div>
 
                         <!-- Labels -->
@@ -237,10 +241,12 @@
     private string _newChecklistItem = "";
     private bool _editingTitle;
     private DateTime? _dueDate;
+    private TimeSpan? _dueTime;
 
     protected override void OnInitialized()
     {
-        _dueDate = Card.DueDate;
+        _dueDate = Card.DueDate.HasValue ? Card.DueDate.Value.Date : (DateTime?)null;
+        _dueTime = Card.DueDate?.TimeOfDay is TimeSpan t && t != TimeSpan.Zero ? t : (TimeSpan?)null;
     }
 
     private void Close() => MudDialog.Close();
@@ -260,12 +266,15 @@
     {
         try
         {
-            Card.DueDate = _dueDate;
+            var combinedDue = _dueDate.HasValue
+                ? _dueDate.Value.Date + (_dueTime ?? TimeSpan.Zero)
+                : (DateTime?)null;
+            Card.DueDate = combinedDue;
             await BoardService.UpdateCardAsync(Card.Id, new UpdateCardRequest(
                 Card.Title,
                 Card.Description,
                 Card.Priority,
-                _dueDate,
+                combinedDue,
                 Card.AssigneeId,
                 Card.Labels.Select(l => l.Id).ToList()
             ));

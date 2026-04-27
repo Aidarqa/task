@@ -18,11 +18,9 @@ public class DashboardController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> GetStats()
     {
         var nowUtc = DateTime.UtcNow;
-        var todayStartUtc = nowUtc.Date;
-        var todayEndUtc = todayStartUtc.AddDays(1);
-        var nowLocal = KyrgyzstanTime.Now;
-        var todayStartLocal = KyrgyzstanTime.Today;
-        var todayEndLocal = todayStartLocal.AddDays(1);
+        // All date comparisons use Kyrgyzstan-day boundaries expressed in UTC
+        var todayKgUtc = KyrgyzstanTime.ConvertToUtc(KyrgyzstanTime.Today);
+        var tomorrowKgUtc = todayKgUtc.AddDays(1);
 
         var accessibleTasks = db.WorkTasks.Where(t =>
             t.ParentTaskId == null &&
@@ -37,11 +35,11 @@ public class DashboardController(AppDbContext db) : ControllerBase
             t.DueDate < nowUtc);
         var dueToday = await accessibleTasks.CountAsync(t =>
             t.Status != WorkTaskStatus.Done && t.Status != WorkTaskStatus.Cancelled &&
-            t.DueDate >= todayStartUtc && t.DueDate < todayEndUtc);
+            t.DueDate >= todayKgUtc && t.DueDate < tomorrowKgUtc);
         var unreadNotifications = await db.Notifications.CountAsync(n => n.UserId == CurrentUserId && !n.IsRead);
         var upcomingEvents = await db.CalendarEvents.CountAsync(e =>
             (e.OrganizerId == CurrentUserId || e.Participants.Any(p => p.UserId == CurrentUserId)) &&
-            e.StartTime >= nowLocal && e.StartTime < nowLocal.AddDays(7));
+            e.StartTime >= nowUtc && e.StartTime < tomorrowKgUtc.AddDays(6));
 
         var recentTasks = await db.WorkTasks
             .Include(t => t.SubTasks).Include(t => t.Comments).Include(t => t.Checklist)
@@ -53,7 +51,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var todayEvents = await db.CalendarEvents
             .Include(e => e.Participants)
             .Where(e => (e.OrganizerId == CurrentUserId || e.Participants.Any(p => p.UserId == CurrentUserId)) &&
-                        e.StartTime >= todayStartLocal && e.StartTime < todayEndLocal)
+                        e.StartTime >= todayKgUtc && e.StartTime < tomorrowKgUtc)
             .OrderBy(e => e.StartTime)
             .ToListAsync();
 
