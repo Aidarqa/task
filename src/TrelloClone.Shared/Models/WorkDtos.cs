@@ -145,7 +145,9 @@ public record BookingDto(
     Guid Id, Guid ResourceId, string ResourceName, string ResourceLocation,
     string BookedById, string BookedByName,
     DateTime StartTime, DateTime EndTime,
-    string? Title, BookingStatus Status, DateTime CreatedAt
+    string? Title, BookingStatus Status, DateTime CreatedAt,
+    Guid? EventId = null,
+    List<EventParticipant>? Participants = null
 );
 
 // ── Chat DTOs ─────────────────────────────────────────────

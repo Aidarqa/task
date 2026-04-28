@@ -2454,7 +2454,7 @@ select:-webkit-autofill {
   opacity: 0.62;
   background: color-mix(
     in srgb,
-    var(--mud-palette-text-primary) 4%,
+    var(--mud-palette-text-primary) 14%,
     var(--mud-palette-surface)
   );
 }
@@ -2682,15 +2682,28 @@ select:-webkit-autofill {
 
 .booking-filter-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr auto;
+  grid-template-columns: minmax(220px, 1.25fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(170px, 0.8fr) auto auto;
   gap: 12px;
   align-items: center;
+}
+
+.booking-mine-switch {
+  min-height: 40px;
+  white-space: nowrap;
 }
 
 .booking-filter-btn {
   height: 40px;
   border-radius: 12px;
   min-width: 120px;
+}
+
+.booking-quick-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
 }
 /* LIST */
 
@@ -2704,7 +2717,7 @@ select:-webkit-autofill {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: calc(100vh - 325px);
+  height: calc(100vh - 370px);
   min-height: 420px;
   min-height: 0;
   overflow: hidden;
@@ -2748,6 +2761,16 @@ select:-webkit-autofill {
   border-color: var(--mud-palette-primary) !important;
 }
 
+.booking-card--created-by-me {
+  background: #183654;
+  border-color: #2f6fa8;
+}
+
+.booking-card--participating {
+  background: #25423a;
+  border-color: #4f9b82;
+}
+
 .booking-card--highlighted {
   border-color: var(--mud-palette-primary) !important;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--mud-palette-primary) 36%, transparent);
@@ -2760,6 +2783,14 @@ select:-webkit-autofill {
     var(--mud-palette-text-primary) 4%,
     var(--mud-palette-surface)
   );
+}
+
+.booking-card--created-by-me.booking-card--cancelled {
+  background: #1f3447;
+}
+
+.booking-card--participating.booking-card--cancelled {
+  background: #293d38;
 }
 /* CONTENT */
 
@@ -2973,6 +3004,10 @@ select:-webkit-autofill {
 
   .booking-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .booking-quick-filters .mud-button-root {
+    flex: 1 1 calc(50% - 8px);
   }
 
   .booking-top-line {
@@ -4299,6 +4334,24 @@ body.light-theme .project-name {
 body.light-theme .booking-card {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .booking-card--created-by-me {
+  background: #e8f2ff;
+  border-color: #9fc7f4;
+}
+
+body.light-theme .booking-card--participating {
+  background: #e8f7f1;
+  border-color: #99d6c2;
+}
+
+body.light-theme .booking-card--created-by-me.booking-card--cancelled {
+  background: #edf4fb;
+}
+
+body.light-theme .booking-card--participating.booking-card--cancelled {
+  background: #edf7f4;
 }
 
 body.light-theme .chats-sidebar {

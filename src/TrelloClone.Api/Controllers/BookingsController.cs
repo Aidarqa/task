@@ -84,7 +84,20 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         }
 
         var list = await q.OrderBy(b => b.StartTime).ToListAsync();
-        return Ok(list.Select(ToDto));
+        var eventIds = list
+            .Where(b => b.EventId.HasValue)
+            .Select(b => b.EventId!.Value)
+            .Distinct()
+            .ToList();
+
+        var participantsByEventId = eventIds.Count == 0
+            ? new Dictionary<Guid, List<EventParticipant>>()
+            : await db.CalendarEvents
+                .Include(e => e.Participants)
+                .Where(e => eventIds.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, e => e.Participants);
+
+        return Ok(list.Select(booking => ToDto(booking, participantsByEventId)));
     }
 
     [HttpPost]
@@ -176,7 +189,9 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         return NoContent();
     }
 
-    private static BookingDto ToDto(Booking b) => new(
+    private static BookingDto ToDto(
+        Booking b,
+        IReadOnlyDictionary<Guid, List<EventParticipant>>? participantsByEventId = null) => new(
         b.Id,
         b.ResourceId,
         b.Resource?.Name ?? "",
@@ -187,5 +202,9 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         b.EndTime,
         b.Title,
         b.Status,
-        b.CreatedAt);
+        b.CreatedAt,
+        b.EventId,
+        b.EventId.HasValue && participantsByEventId?.TryGetValue(b.EventId.Value, out var participants) == true
+            ? participants
+            : []);
 }

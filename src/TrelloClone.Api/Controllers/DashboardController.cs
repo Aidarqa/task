@@ -39,7 +39,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
         var unreadNotifications = await db.Notifications.CountAsync(n => n.UserId == CurrentUserId && !n.IsRead);
         var upcomingEvents = await db.CalendarEvents.CountAsync(e =>
             (e.OrganizerId == CurrentUserId || e.Participants.Any(p => p.UserId == CurrentUserId)) &&
-            e.StartTime >= nowUtc && e.StartTime < tomorrowKgUtc.AddDays(6));
+            e.StartTime >= todayKgUtc && e.StartTime < tomorrowKgUtc.AddDays(6));
 
         var recentTasks = await db.WorkTasks
             .Include(t => t.SubTasks).Include(t => t.Comments).Include(t => t.Checklist)

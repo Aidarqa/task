@@ -55,7 +55,7 @@
             {
                 <MudPaper Class="project-card-modern"
                           Elevation="@(p.Id == _highlightedProjectId ? 4 : 0)"
-                          Style="@(p.Id == _highlightedProjectId ? "outline: 2.5px solid var(--mud-palette-primary); outline-offset: 2px;" : "")"
+                          Style="@(p.Id == _highlightedProjectId ? "outline: 1.5px solid var(--mud-palette-primary); outline-offset: -1px;" : "")"
                           @onclick="@(() => Nav.NavigateTo($"/tasks?project={p.Id}"))">
 
                     <div class="project-card-modern__cover" style="background:@p.Color">

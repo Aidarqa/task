@@ -74,11 +74,51 @@
                                Label="@L["book_to"]"
                                Variant="Variant.Outlined" />
 
+                <MudSelect T="BookingStatus?"
+                           @bind-Value="SelectedBookingStatus"
+                           Label="@L["book_status"]"
+                           Margin="Margin.Dense"
+                           Dense="true"
+                           Variant="Variant.Outlined"
+                           Clearable="true">
+                    <MudSelectItem T="BookingStatus?" Value="@((BookingStatus?)BookingStatus.Confirmed)">@L["book_active"]</MudSelectItem>
+                    <MudSelectItem T="BookingStatus?" Value="@((BookingStatus?)BookingStatus.Cancelled)">@L["book_cancelled_status"]</MudSelectItem>
+                </MudSelect>
+
+                <MudSwitch T="bool"
+                           @bind-Value="ShowOnlyMyBookings"
+                           Color="Color.Primary"
+                           Label="@L["book_mine"]"
+                           Class="booking-mine-switch" />
+
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            OnClick="ApplyBookingFiltersAsync"
                            Class="booking-filter-btn">
                     @L["book_find"]
+                </MudButton>
+            </div>
+
+            <div class="booking-quick-filters">
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Outlined"
+                           OnClick="@(() => ApplyQuickRangeAsync(BookingQuickRange.Today))">
+                    @L["book_today"]
+                </MudButton>
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Outlined"
+                           OnClick="@(() => ApplyQuickRangeAsync(BookingQuickRange.Week))">
+                    @L["book_week"]
+                </MudButton>
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Outlined"
+                           OnClick="@(() => ApplyQuickRangeAsync(BookingQuickRange.Month))">
+                    @L["book_month"]
+                </MudButton>
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Text"
+                           OnClick="@(() => ApplyQuickRangeAsync(BookingQuickRange.All))">
+                    @L["book_all"]
                 </MudButton>
             </div>
         </MudPaper>
@@ -120,6 +160,25 @@
                                                          Variant="Variant.Outlined">
                                                     @(booking.Status == BookingStatus.Confirmed ? L["book_active"] : L["book_cancelled_status"])
                                                 </MudChip>
+
+                                                @if (IsCreatedByCurrentUser(booking))
+                                                {
+                                                    <MudChip T="string"
+                                                             Size="Size.Small"
+                                                             Color="Color.Primary"
+                                                             Variant="Variant.Filled">
+                                                        @L["book_created_by_me"]
+                                                    </MudChip>
+                                                }
+                                                else if (IsParticipatingBooking(booking))
+                                                {
+                                                    <MudChip T="string"
+                                                             Size="Size.Small"
+                                                             Color="Color.Info"
+                                                             Variant="Variant.Filled">
+                                                        @L["book_participating"]
+                                                    </MudChip>
+                                                }
                                             </div>
 
                                             @if (!string.IsNullOrWhiteSpace(booking.Title))
@@ -357,6 +416,7 @@
     public string? BookingIdParam { get; set; }
 
     private List<Resource> _resources = [];
+    private List<BookingDto> _loadedBookings = [];
     private List<BookingDto> _bookings = [];
     private bool _loading = true;
     private string _activeTab = "bookings";
@@ -365,6 +425,8 @@
     private Guid? _highlightedBookingId;
     private DateTime? _filterFrom = KyrgyzstanTime.Today;
     private DateTime? _filterTo = KyrgyzstanTime.Today.AddDays(7);
+    private bool _showOnlyMyBookings;
+    private BookingStatus? _selectedBookingStatus;
     private bool _bookingOpen;
     private bool _resourceOpen;
     private int _bookingPage = 1;
@@ -390,9 +452,40 @@
     private int BookingPaginationStart => _bookings.Count == 0 ? 0 : ((_bookingPage - 1) * BookingPageSize) + 1;
     private int BookingPaginationEnd => Math.Min(_bookingPage * BookingPageSize, _bookings.Count);
 
+    private bool ShowOnlyMyBookings
+    {
+        get => _showOnlyMyBookings;
+        set
+        {
+            if (_showOnlyMyBookings == value)
+                return;
+
+            _showOnlyMyBookings = value;
+            ApplyClientBookingFilters();
+        }
+    }
+
+    private BookingStatus? SelectedBookingStatus
+    {
+        get => _selectedBookingStatus;
+        set
+        {
+            if (_selectedBookingStatus == value)
+                return;
+
+            _selectedBookingStatus = value;
+            ApplyClientBookingFilters();
+        }
+    }
+
     private string GetBookingCardClass(BookingDto booking)
     {
         var classes = new List<string> { "booking-card" };
+
+        if (IsCreatedByCurrentUser(booking))
+            classes.Add("booking-card--created-by-me");
+        else if (IsParticipatingBooking(booking))
+            classes.Add("booking-card--participating");
 
         if (booking.Status == BookingStatus.Cancelled)
             classes.Add("booking-card--cancelled");
@@ -439,9 +532,9 @@
             var from = _filterFrom?.Date;
             var to = _filterTo?.Date.AddDays(1).AddTicks(-1);
 
-            _bookings = await BookingSvc.GetBookingsAsync(
+            _loadedBookings = await BookingSvc.GetBookingsAsync(
                 from, to, _filterResourceId);
-            NormalizeBookingPagination();
+            ApplyClientBookingFilters(resetPage: false);
         }
         finally
         {
@@ -453,6 +546,52 @@
     {
         _bookingPage = 1;
         await LoadBookingsAsync();
+    }
+
+    private async Task ApplyQuickRangeAsync(BookingQuickRange range)
+    {
+        var today = KyrgyzstanTime.Today;
+
+        switch (range)
+        {
+            case BookingQuickRange.Today:
+                _filterFrom = today;
+                _filterTo = today;
+                break;
+            case BookingQuickRange.Week:
+                _filterFrom = today;
+                _filterTo = today.AddDays(7);
+                break;
+            case BookingQuickRange.Month:
+                _filterFrom = today;
+                _filterTo = today.AddMonths(1);
+                break;
+            default:
+                _filterFrom = null;
+                _filterTo = null;
+                break;
+        }
+
+        _bookingPage = 1;
+        await LoadBookingsAsync();
+    }
+
+    private void ApplyClientBookingFilters(bool resetPage = true)
+    {
+        IEnumerable<BookingDto> query = _loadedBookings;
+
+        if (_selectedBookingStatus.HasValue)
+            query = query.Where(booking => booking.Status == _selectedBookingStatus.Value);
+
+        if (_showOnlyMyBookings)
+            query = query.Where(IsRelatedToCurrentUser);
+
+        _bookings = query.ToList();
+
+        if (resetPage)
+            _bookingPage = 1;
+
+        NormalizeBookingPagination();
     }
 
     private void OpenBookingDialog()
@@ -495,6 +634,11 @@
         if (booking is not null)
             _bookings[_bookings.IndexOf(booking)] = booking with { Status = BookingStatus.Cancelled };
 
+        var loadedBooking = _loadedBookings.FirstOrDefault(x => x.Id == id);
+        if (loadedBooking is not null)
+            _loadedBookings[_loadedBookings.IndexOf(loadedBooking)] = loadedBooking with { Status = BookingStatus.Cancelled };
+
+        ApplyClientBookingFilters(resetPage: false);
         Snackbar.Add(L["book_cancelled_msg"], Severity.Info);
     }
 
@@ -513,6 +657,7 @@
     private async Task DeleteBookingAsync(Guid id)
     {
         await BookingSvc.DeleteBookingAsync(id);
+        _loadedBookings.RemoveAll(x => x.Id == id);
         _bookings.RemoveAll(x => x.Id == id);
         NormalizeBookingPagination();
         Snackbar.Add(L["book_deleted"], Severity.Info);
@@ -565,6 +710,17 @@
     private bool CanDeleteBooking(BookingDto booking)
         => booking.BookedById == _currentUserId;
 
+    private bool IsCreatedByCurrentUser(BookingDto booking)
+        => booking.BookedById == _currentUserId
+           && !string.IsNullOrWhiteSpace(_currentUserId);
+
+    private bool IsParticipatingBooking(BookingDto booking)
+        => !IsCreatedByCurrentUser(booking)
+           && booking.Participants?.Any(participant => participant.UserId == _currentUserId) == true;
+
+    private bool IsRelatedToCurrentUser(BookingDto booking)
+        => IsCreatedByCurrentUser(booking) || IsParticipatingBooking(booking);
+
     private void NormalizeBookingPagination()
     {
         if (_bookingPage < 1)
@@ -587,4 +743,12 @@
         ResourceType.Vehicle => Icons.Material.Filled.DirectionsCar,
         _ => Icons.Material.Filled.Inventory
     };
+
+    private enum BookingQuickRange
+    {
+        Today,
+        Week,
+        Month,
+        All
+    }
 }
