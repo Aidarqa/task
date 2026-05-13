@@ -8,7 +8,6 @@ namespace TrelloClone.Client.Services;
 public interface IAuthService
 {
     Task<AuthResponse> LoginAsync(LoginRequest request);
-    Task<AuthResponse> RegisterAsync(RegisterRequest request);
     Task LogoutAsync();
     Task<string?> GetUserIdAsync();
     Task<string?> GetUserNameAsync();
@@ -31,22 +30,6 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var response = await _http.PostAsJsonAsync("api/auth/login", request);
-        var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
-
-        if (result is { Success: true, Token: not null })
-        {
-            await _localStorage.SetItemAsStringAsync("authToken", result.Token);
-            await _localStorage.SetItemAsStringAsync("userId", result.UserId ?? "");
-            await _localStorage.SetItemAsStringAsync("userName", result.UserName ?? "");
-            ((JwtAuthStateProvider)_authState).NotifyAuthStateChanged();
-        }
-
-        return result ?? new AuthResponse(false, null, null, null, "Unknown error");
-    }
-
-    public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
-    {
-        var response = await _http.PostAsJsonAsync("api/auth/register", request);
         var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
 
         if (result is { Success: true, Token: not null })

@@ -17,37 +17,47 @@ public class DeadlineReminderService(
 
     private async Task RunDeadlineLoopAsync(CancellationToken ct)
     {
-        await Task.Delay(TimeSpan.FromMinutes(2), ct);
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
+            await Task.Delay(TimeSpan.FromMinutes(2), ct);
+            while (!ct.IsCancellationRequested)
             {
-                await CheckDeadlinesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Deadline check failed");
-            }
+                try
+                {
+                    await CheckDeadlinesAsync(ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Deadline check failed");
+                }
 
-            await Task.Delay(TimeSpan.FromHours(6), ct);
+                await Task.Delay(TimeSpan.FromHours(6), ct);
+            }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { /* shutdown */ }
     }
 
     private async Task RunEventReminderLoopAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
+            while (!ct.IsCancellationRequested)
             {
-                await CheckUpcomingEventsAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Event reminder check failed");
-            }
+                try
+                {
+                    await CheckUpcomingEventsAsync(ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Event reminder check failed");
+                }
 
-            await Task.Delay(TimeSpan.FromMinutes(5), ct);
+                await Task.Delay(TimeSpan.FromMinutes(5), ct);
+            }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { /* shutdown */ }
     }
 
     private async Task CheckDeadlinesAsync(CancellationToken ct)

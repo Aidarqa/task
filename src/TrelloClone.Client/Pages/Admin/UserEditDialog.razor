@@ -1,0 +1,108 @@
+@using System.Net.Http.Json
+@inject AdminUserService UsersSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3" Style="min-width:420px">
+            <MudTextField @bind-Value="_userName" Label="Имя пользователя" Required="true" />
+            <MudTextField @bind-Value="_email" Label="Email" Required="true" InputType="InputType.Email" />
+
+            @if (User is null)
+            {
+                <MudTextField @bind-Value="_password" Label="Пароль (минимум 6 символов)"
+                              Required="true" InputType="InputType.Password" />
+            }
+
+            <MudSwitch T="bool" @bind-Value="_isActive" Label="Активен" Color="Color.Success" />
+
+            <MudText Typo="Typo.subtitle2" Class="mt-2">Роли</MudText>
+            <MudStack Spacing="1">
+                @foreach (var role in AvailableRoles ?? [])
+                {
+                    <MudCheckBox T="bool"
+                                 Value="_selectedRoleIds.Contains(role.Id)"
+                                 ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
+                                 Label="@role.Name" />
+                }
+            </MudStack>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @(User is null ? "Создать" : "Сохранить")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public AdminUserDto? User { get; set; }
+    [Parameter] public List<RoleDto>? AvailableRoles { get; set; }
+
+    private string _userName = "";
+    private string _email = "";
+    private string _password = "";
+    private bool _isActive = true;
+    private HashSet<Guid> _selectedRoleIds = [];
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (User is not null)
+        {
+            _userName = User.UserName;
+            _email = User.Email;
+            _isActive = User.IsActive;
+            _selectedRoleIds = User.Roles.Select(r => r.Id).ToHashSet();
+        }
+    }
+
+    private void ToggleRole(Guid id, bool enabled)
+    {
+        if (enabled) _selectedRoleIds.Add(id);
+        else _selectedRoleIds.Remove(id);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            HttpResponseMessage resp;
+            if (User is null)
+            {
+                resp = await UsersSvc.CreateAsync(new AdminCreateUserRequest(
+                    _userName, _email, _password, _selectedRoleIds.ToList()));
+            }
+            else
+            {
+                resp = await UsersSvc.UpdateAsync(User.Id, new AdminUpdateUserRequest(
+                    _userName, _email, _isActive, _selectedRoleIds.ToList()));
+            }
+
+            if (resp.IsSuccessStatusCode)
+            {
+                Snackbar.Add(User is null ? "Пользователь создан" : "Сохранено", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var body = await resp.Content.ReadAsStringAsync();
+                Snackbar.Add($"Ошибка: {body}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

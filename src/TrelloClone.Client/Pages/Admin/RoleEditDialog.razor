@@ -1,0 +1,102 @@
+@inject RoleService RolesSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3" Style="min-width:520px; max-height:70vh; overflow:auto">
+            <MudTextField @bind-Value="_name" Label="Название" Required="true"
+                          Disabled="@(Role?.IsSystem == true)" />
+            <MudTextField @bind-Value="_description" Label="Описание" Lines="2" />
+
+            <MudText Typo="Typo.subtitle2">Права</MudText>
+            @if (Role?.IsSystem == true && _name == "SuperAdmin")
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    Роль SuperAdmin имеет все права автоматически и не редактируется.
+                </MudAlert>
+            }
+            else
+            {
+                @foreach (var group in (AllPermissions ?? []).GroupBy(p => p.Category))
+                {
+                    <MudText Typo="Typo.overline" Class="mt-2">@group.Key</MudText>
+                    <MudStack Spacing="0">
+                        @foreach (var p in group)
+                        {
+                            <MudCheckBox T="bool"
+                                         Value="_selected.Contains(p.Code)"
+                                         ValueChanged="@((bool v) => Toggle(p.Code, v))"
+                                         Label="@($"{p.Description} ({p.Code})")" />
+                        }
+                    </MudStack>
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SaveAsync" Disabled="_busy">
+            @(Role is null ? "Создать" : "Сохранить")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public RoleDto? Role { get; set; }
+    [Parameter] public List<PermissionDescriptor>? AllPermissions { get; set; }
+
+    private string _name = "";
+    private string? _description;
+    private HashSet<string> _selected = [];
+    private bool _busy;
+
+    protected override void OnInitialized()
+    {
+        if (Role is not null)
+        {
+            _name = Role.Name;
+            _description = Role.Description;
+            _selected = Role.Permissions.ToHashSet();
+        }
+    }
+
+    private void Toggle(string code, bool enabled)
+    {
+        if (enabled) _selected.Add(code);
+        else _selected.Remove(code);
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        try
+        {
+            HttpResponseMessage resp;
+            if (Role is null)
+            {
+                resp = await RolesSvc.CreateAsync(new CreateRoleRequest(_name, _description, _selected.ToList()));
+            }
+            else
+            {
+                resp = await RolesSvc.UpdateAsync(Role.Id,
+                    new UpdateRoleRequest(_name, _description, _selected.ToList()));
+            }
+
+            if (resp.IsSuccessStatusCode)
+            {
+                Snackbar.Add(Role is null ? "Роль создана" : "Сохранено", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                Snackbar.Add($"Ошибка: {await resp.Content.ReadAsStringAsync()}", Severity.Error);
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

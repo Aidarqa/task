@@ -1,0 +1,159 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = TrelloClone.Shared.Models.Permissions.UsersView)]
+@inject AdminUserService UsersSvc
+@inject RoleService RolesSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Large" />
+        <MudText Typo="Typo.h5">Пользователи</MudText>
+        <MudSpacer />
+        <AuthorizeView Policy="@TrelloClone.Shared.Models.Permissions.UsersCreate" Context="_authC">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="OpenCreate">
+                Создать пользователя
+            </MudButton>
+        </AuthorizeView>
+    </MudStack>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="_users" Hover="true" Dense="true" Striped="true">
+            <HeaderContent>
+                <MudTh>Пользователь</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Роли</MudTh>
+                <MudTh>Статус</MudTh>
+                <MudTh>Создан</MudTh>
+                <MudTh Style="text-align:right">Действия</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.UserName</MudTd>
+                <MudTd>@context.Email</MudTd>
+                <MudTd>
+                    @foreach (var r in context.Roles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@(r.IsSystem ? Color.Primary : Color.Default)">
+                            @r.Name
+                        </MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    @if (context.IsActive)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">активен</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default">отключён</MudChip>
+                    }
+                </MudTd>
+                <MudTd>@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
+                <MudTd Style="text-align:right">
+                    <AuthorizeView Policy="@TrelloClone.Shared.Models.Permissions.UsersUpdate" Context="_authU">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => OpenEdit(context))" />
+                    </AuthorizeView>
+                    <AuthorizeView Policy="@TrelloClone.Shared.Models.Permissions.UsersPasswordReset" Context="_authP">
+                        <MudIconButton Icon="@Icons.Material.Filled.Password" Size="Size.Small"
+                                       OnClick="@(() => OpenResetPassword(context))" />
+                    </AuthorizeView>
+                    <AuthorizeView Policy="@TrelloClone.Shared.Models.Permissions.UsersDelete" Context="_authD">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </AuthorizeView>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private bool _loading = true;
+    private List<AdminUserDto> _users = [];
+    private List<RoleDto> _roles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _users = await UsersSvc.ListAsync();
+            _roles = await RolesSvc.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка загрузки: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters
+        {
+            ["AvailableRoles"] = _roles
+        };
+        var dlg = await Dialog.ShowAsync<UserEditDialog>("Создать пользователя", parameters);
+        var res = await dlg.Result;
+        if (res is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task OpenEdit(AdminUserDto user)
+    {
+        var parameters = new DialogParameters
+        {
+            ["User"] = user,
+            ["AvailableRoles"] = _roles
+        };
+        var dlg = await Dialog.ShowAsync<UserEditDialog>("Редактировать пользователя", parameters);
+        var res = await dlg.Result;
+        if (res is { Canceled: false }) await LoadAsync();
+    }
+
+    private async Task OpenResetPassword(AdminUserDto user)
+    {
+        var parameters = new DialogParameters
+        {
+            ["UserName"] = user.UserName,
+            ["UserId"] = user.Id
+        };
+        var dlg = await Dialog.ShowAsync<PasswordResetDialog>("Сбросить пароль", parameters);
+        await dlg.Result;
+    }
+
+    private async Task DeleteAsync(AdminUserDto user)
+    {
+        var ok = await Dialog.ShowMessageBox(
+            "Удаление пользователя",
+            $"Удалить «{user.UserName}»?",
+            yesText: "Удалить", cancelText: "Отмена");
+        if (ok != true) return;
+
+        var resp = await UsersSvc.DeleteAsync(user.Id);
+        if (resp.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Пользователь удалён", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add($"Ошибка: {await resp.Content.ReadAsStringAsync()}", Severity.Error);
+        }
+    }
+}

@@ -51,6 +51,12 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
+    // ── RBAC ─────────────────────────────────────────────
+    public DbSet<Role>           Roles           => Set<Role>();
+    public DbSet<Permission>     Permissions     => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<UserRole>       UserRoles       => Set<UserRole>();
+
     protected override void OnModelCreating(ModelBuilder mb)
     {
         // ── User ─────────────────────────────────────────
@@ -181,6 +187,37 @@ public class AppDbContext : DbContext
         {
             e.HasKey(m => m.Id);
             e.HasIndex(m => new { m.ProjectId, m.UserId }).IsUnique();
+        });
+
+        // ── RBAC ─────────────────────────────────────────
+        mb.Entity<Role>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => r.Name).IsUnique();
+            e.Property(r => r.Name).HasMaxLength(100);
+            e.Property(r => r.Description).HasMaxLength(400);
+            e.HasMany(r => r.RolePermissions).WithOne()
+             .HasForeignKey(rp => rp.RoleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<Permission>(e =>
+        {
+            e.HasKey(p => p.Code);
+            e.Property(p => p.Code).HasMaxLength(80);
+            e.Property(p => p.Description).HasMaxLength(200);
+            e.Property(p => p.Category).HasMaxLength(80);
+        });
+
+        mb.Entity<RolePermission>(e =>
+        {
+            e.HasKey(rp => new { rp.RoleId, rp.PermissionCode });
+            e.Property(rp => rp.PermissionCode).HasMaxLength(80);
+        });
+
+        mb.Entity<UserRole>(e =>
+        {
+            e.HasKey(ur => new { ur.UserId, ur.RoleId });
+            e.HasIndex(ur => ur.UserId);
         });
     }
 }

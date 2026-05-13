@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using TrelloClone.Api.Data;
+using TrelloClone.Shared.Models;
 
 namespace TrelloClone.Api.Services;
 
 public static class SchemaBootstrapper
 {
-    public static async Task EnsureLatestAsync(AppDbContext db, CancellationToken cancellationToken = default)
+    public static async Task EnsureLatestAsync(
+        AppDbContext db,
+        IConfiguration config,
+        CancellationToken cancellationToken = default)
     {
         if (!db.Database.IsNpgsql())
             return;
@@ -51,7 +55,146 @@ public static class SchemaBootstrapper
 
             ALTER TABLE "Notifications"
                 ADD COLUMN IF NOT EXISTS "SenderUserId" text NULL;
+
+            -- ── RBAC ──────────────────────────────────────────────
+            ALTER TABLE "Users"
+                ADD COLUMN IF NOT EXISTS "IsActive" boolean NOT NULL DEFAULT TRUE;
+
+            CREATE TABLE IF NOT EXISTS "Roles" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "Name" character varying(100) NOT NULL,
+                "Description" character varying(400) NULL,
+                "IsSystem" boolean NOT NULL,
+                "CreatedAt" timestamp with time zone NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Roles_Name" ON "Roles" ("Name");
+
+            CREATE TABLE IF NOT EXISTS "Permissions" (
+                "Code" character varying(80) NOT NULL PRIMARY KEY,
+                "Description" character varying(200) NOT NULL,
+                "Category" character varying(80) NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS "RolePermissions" (
+                "RoleId" uuid NOT NULL,
+                "PermissionCode" character varying(80) NOT NULL,
+                CONSTRAINT "PK_RolePermissions" PRIMARY KEY ("RoleId", "PermissionCode"),
+                CONSTRAINT "FK_RolePermissions_Roles_RoleId" FOREIGN KEY ("RoleId") REFERENCES "Roles" ("Id") ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS "UserRoles" (
+                "UserId" text NOT NULL,
+                "RoleId" uuid NOT NULL,
+                CONSTRAINT "PK_UserRoles" PRIMARY KEY ("UserId", "RoleId")
+            );
+            CREATE INDEX IF NOT EXISTS "IX_UserRoles_UserId" ON "UserRoles" ("UserId");
             """,
             cancellationToken);
+
+        await SyncPermissionsAsync(db, cancellationToken);
+        await SeedSystemRolesAsync(db, cancellationToken);
+        await SeedSuperAdminAsync(db, config, cancellationToken);
+    }
+
+    static async Task SyncPermissionsAsync(AppDbContext db, CancellationToken ct)
+    {
+        var existing = await db.Permissions.ToDictionaryAsync(p => p.Code, ct);
+        foreach (var desc in Shared.Models.Permissions.All)
+        {
+            if (existing.TryGetValue(desc.Code, out var p))
+            {
+                if (p.Description != desc.Description || p.Category != desc.Category)
+                {
+                    p.Description = desc.Description;
+                    p.Category    = desc.Category;
+                }
+            }
+            else
+            {
+                db.Permissions.Add(new Permission
+                {
+                    Code        = desc.Code,
+                    Description = desc.Description,
+                    Category    = desc.Category
+                });
+            }
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    static async Task SeedSystemRolesAsync(AppDbContext db, CancellationToken ct)
+    {
+        var superAdmin = await db.Roles.FirstOrDefaultAsync(r => r.Name == SystemRoles.SuperAdmin, ct);
+        if (superAdmin is null)
+        {
+            superAdmin = new Role
+            {
+                Name = SystemRoles.SuperAdmin,
+                Description = "Полный доступ ко всем функциям",
+                IsSystem = true
+            };
+            db.Roles.Add(superAdmin);
+            await db.SaveChangesAsync(ct);
+        }
+
+        // SuperAdmin must have every permission code
+        var allCodes = Shared.Models.Permissions.All.Select(p => p.Code).ToHashSet();
+        var existingCodes = await db.RolePermissions
+            .Where(rp => rp.RoleId == superAdmin.Id)
+            .Select(rp => rp.PermissionCode)
+            .ToListAsync(ct);
+
+        foreach (var code in allCodes.Except(existingCodes))
+            db.RolePermissions.Add(new RolePermission { RoleId = superAdmin.Id, PermissionCode = code });
+
+        var defaultUser = await db.Roles.FirstOrDefaultAsync(r => r.Name == SystemRoles.User, ct);
+        if (defaultUser is null)
+        {
+            db.Roles.Add(new Role
+            {
+                Name = SystemRoles.User,
+                Description = "Обычный пользователь без административных прав",
+                IsSystem = true
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    static async Task SeedSuperAdminAsync(AppDbContext db, IConfiguration config, CancellationToken ct)
+    {
+        var superAdminRole = await db.Roles.FirstAsync(r => r.Name == SystemRoles.SuperAdmin, ct);
+
+        var anySuperAdmin = await db.UserRoles
+            .AnyAsync(ur => ur.RoleId == superAdminRole.Id, ct);
+        if (anySuperAdmin)
+            return;
+
+        var email    = config["Admin:Email"]    ?? "admin@local";
+        var userName = config["Admin:UserName"] ?? "admin";
+        var password = config["Admin:Password"] ?? "Admin12345!";
+
+        // Reuse existing user with matching email, otherwise create a new one
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+        if (user is null)
+        {
+            user = new AppUser
+            {
+                UserName     = userName,
+                Email        = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                IsActive     = true
+            };
+            db.Users.Add(user);
+        }
+        else
+        {
+            // Reset password to configured value so the operator can sign in
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+            user.IsActive     = true;
+        }
+
+        db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = superAdminRole.Id });
+        await db.SaveChangesAsync(ct);
     }
 }

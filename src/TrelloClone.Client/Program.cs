@@ -27,7 +27,15 @@ builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Api"));
 
 // ── Auth ────────────────────────────────────────────────
-builder.Services.AddAuthorizationCore();
+builder.Services.AddAuthorizationCore(options =>
+{
+    foreach (var perm in TrelloClone.Shared.Models.Permissions.All)
+    {
+        options.AddPolicy(perm.Code, p => p
+            .RequireAuthenticatedUser()
+            .RequireClaim("perm", perm.Code));
+    }
+});
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthStateProvider>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -50,6 +58,8 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ChatClientService>();
 builder.Services.AddScoped<NotificationClientService>();
 builder.Services.AddScoped<FileDownloadService>();
+builder.Services.AddScoped<AdminUserService>();
+builder.Services.AddScoped<RoleService>();
 
 // ── MudBlazor ───────────────────────────────────────────
 builder.Services.AddMudServices(config =>

@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TrelloClone.Api.Data;
@@ -49,6 +50,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // ── Notification & Background Services ─────────────────
 builder.Services.AddScoped<TrelloClone.Api.Services.INotificationService,
@@ -84,7 +87,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.EnsureCreatedAsync();
-    await SchemaBootstrapper.EnsureLatestAsync(db);
+    await SchemaBootstrapper.EnsureLatestAsync(db, app.Configuration);
 }
 
 if (app.Environment.IsDevelopment())

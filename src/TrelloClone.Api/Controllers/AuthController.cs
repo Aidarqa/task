@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TrelloClone.Api.Data;
@@ -10,7 +11,13 @@ namespace TrelloClone.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController(AppDbContext db, ITokenService tokenService) : ControllerBase
 {
+    /// <summary>
+    /// Registration is disabled for the public. New users are created from the admin panel
+    /// via POST /api/admin/users (requires Permissions.UsersCreate).
+    /// This endpoint is kept for backwards compatibility but requires the same permission.
+    /// </summary>
     [HttpPost("register")]
+    [Authorize(Policy = Permissions.UsersCreate)]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest req)
     {
         if (await db.Users.AnyAsync(u => u.Email == req.Email))
@@ -18,15 +25,16 @@ public class AuthController(AppDbContext db, ITokenService tokenService) : Contr
 
         var user = new AppUser
         {
-            UserName = req.UserName,
-            Email = req.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password)
+            UserName     = req.UserName,
+            Email        = req.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
+            IsActive     = true
         };
 
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateToken(user);
+        var token = await tokenService.GenerateTokenAsync(user);
         return Ok(new AuthResponse(true, token, user.Id, user.UserName, null));
     }
 
@@ -37,7 +45,10 @@ public class AuthController(AppDbContext db, ITokenService tokenService) : Contr
         if (user is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
             return Unauthorized(new AuthResponse(false, null, null, null, "Invalid credentials"));
 
-        var token = tokenService.GenerateToken(user);
+        if (!user.IsActive)
+            return Unauthorized(new AuthResponse(false, null, null, null, "Account is disabled"));
+
+        var token = await tokenService.GenerateTokenAsync(user);
         return Ok(new AuthResponse(true, token, user.Id, user.UserName, null));
     }
 }

@@ -18,21 +18,11 @@
             </MudText>
 
             <MudText Typo="Typo.body2" Align="Align.Center" Class="auth-subtitle">
-                @(_isRegister ? L["login_reg_subtitle"] : L["login_subtitle"])
+                @L["login_subtitle"]
             </MudText>
         </div>
 
         <MudStack Spacing="3" Class="auth-form-stack">
-            @if (_isRegister)
-            {
-                <MudTextField @bind-Value="_userName"
-                              Label="@L["login_username"]"
-                              Variant="Variant.Outlined"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Person"
-                              Class="auth-input" />
-            }
-
             <MudTextField @bind-Value="_email"
                           Label="@L["login_email"]"
                           Variant="Variant.Outlined"
@@ -64,23 +54,7 @@
                                          Indeterminate="true"
                                          Class="mr-2" />
                 }
-                @(_isRegister ? L["login_reg_btn"] : L["login_btn"])
-            </MudButton>
-
-            <div class="auth-divider">
-                <span class="auth-divider__line"></span>
-                <span class="auth-divider__text">
-                    @(_isRegister ? L["login_has_account_short"] : L["login_no_account_short"])
-                </span>
-                <span class="auth-divider__line"></span>
-            </div>
-
-            <MudButton Variant="Variant.Text"
-                       Color="Color.Primary"
-                       FullWidth="true"
-                       OnClick="() => _isRegister = !_isRegister"
-                       Class="auth-switch-btn">
-                @(_isRegister ? L["login_have_account"] : L["login_no_account"])
+                @L["login_btn"]
             </MudButton>
         </MudStack>
     </MudPaper>
@@ -89,8 +63,6 @@
 @code {
     private string _email = "";
     private string _password = "";
-    private string _userName = "";
-    private bool _isRegister;
     private bool _loading;
     private bool _showPassword;
 
@@ -99,11 +71,7 @@
         _loading = true;
         try
         {
-            AuthResponse result;
-            if (_isRegister)
-                result = await AuthService.RegisterAsync(new RegisterRequest(_userName, _email, _password));
-            else
-                result = await AuthService.LoginAsync(new LoginRequest(_email, _password));
+            var result = await AuthService.LoginAsync(new LoginRequest(_email, _password));
 
             if (result.Success)
             {
