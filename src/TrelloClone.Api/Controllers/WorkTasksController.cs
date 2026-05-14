@@ -379,6 +379,21 @@ public class WorkTasksController(
         return Ok(item);
     }
 
+    [HttpPut("{id:guid}/checklist/{itemId:guid}")]
+    public async Task<IActionResult> UpdateChecklistText(Guid id, Guid itemId, CreateWorkTaskChecklistItemRequest req)
+    {
+        var task = await BaseTaskQuery().FirstOrDefaultAsync(t => t.Id == id);
+        if (task is null) return NotFound();
+        if (!CanAccessTask(task)) return Forbid();
+
+        var item = await db.WorkTaskChecklists.FirstOrDefaultAsync(c => c.Id == itemId && c.TaskId == id);
+        if (item is null) return NotFound();
+
+        item.Text = req.Text;
+        await db.SaveChangesAsync();
+        return Ok(item);
+    }
+
     [HttpPut("{id:guid}/checklist/{itemId:guid}/toggle")]
     public async Task<IActionResult> ToggleChecklist(Guid id, Guid itemId)
     {

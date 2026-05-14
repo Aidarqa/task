@@ -185,6 +185,7 @@
     private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
     private List<NotificationDto> _recentNotifications = [];
     private readonly HashSet<Guid> _handledNotificationIds = [];
+    private DotNetObjectReference<MainLayout>? _dotNetRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -231,18 +232,20 @@
             {
                 _unreadCount++;
                 _chatUnreadCount++;
-
-                // Browser notification when tab is not visible
-                _ = JS.InvokeVoidAsync("browserNotif.show",
-                    notif.Title,
-                    notif.Body,
-                    notif.Link ?? "/chats",
-                    $"chat-{notif.RelatedEntityId}");
             }
             else
             {
                 _ = RefreshCountsAsync();
             }
+
+            // Always call show — JS decides based on document.visibilityState.
+            // This covers the case where the user is on /chats but the browser
+            // is minimized or focus is in another window.
+            _ = JS.InvokeVoidAsync("browserNotif.show",
+                notif.Title,
+                notif.Body,
+                notif.Link ?? "/chats",
+                $"chat-{notif.RelatedEntityId}");
 
             _ = InvokeAsync(StateHasChanged);
             return;
@@ -257,12 +260,13 @@
         var msg = notif.Body is not null ? $"{notif.Title}: {notif.Body}" : notif.Title;
         Snackbar.Add(msg, Severity.Info);
 
-        // Browser notification for non-chat notifications when tab is not visible
+        // Browser notification — JS decides whether to show based on document.visibilityState
+        var notifUrl = BuildNotificationUrl(notif);
         _ = JS.InvokeVoidAsync("browserNotif.show",
             notif.Title,
             notif.Body,
-            notif.Link,
-            $"notif-{notif.NotificationType}");
+            notifUrl,
+            $"notif-{notif.Id}");
 
         _ = InvokeAsync(StateHasChanged);
     }
@@ -357,10 +361,28 @@
         catch { }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("browserNotif.setDotnetRef", _dotNetRef);
+        }
+    }
+
+    /// <summary>Called from JS when the user clicks a browser notification.</summary>
+    [JSInvokable]
+    public void HandleNotificationClick(string? url)
+    {
+        if (!string.IsNullOrEmpty(url))
+            Nav.NavigateTo(url, forceLoad: false);
+    }
+
     private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);
 
     public override void Dispose()
     {
+        _dotNetRef?.Dispose();
         ThemeSvc.Changed -= OnThemeChanged;
         NotificationSvc.OnNotification -= OnNotificationReceived;
         NotificationSvc.OnCountChanged -= OnCountChangedHandler;

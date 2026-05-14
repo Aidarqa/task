@@ -120,6 +120,13 @@ public class WorkTaskService(HttpClient http, LocalizationService l)
         return await r.Content.ReadFromJsonAsync<WorkTaskChecklistItem>();
     }
 
+    public async Task UpdateChecklistItemTextAsync(Guid taskId, Guid itemId, string text)
+    {
+        var r = await http.PutAsJsonAsync($"api/worktasks/{taskId}/checklist/{itemId}",
+            new CreateWorkTaskChecklistItemRequest(text));
+        r.EnsureSuccessStatusCode();
+    }
+
     public async Task ToggleChecklistItemAsync(Guid taskId, Guid itemId)
         => (await http.PutAsync($"api/worktasks/{taskId}/checklist/{itemId}/toggle", null)).EnsureSuccessStatusCode();
 

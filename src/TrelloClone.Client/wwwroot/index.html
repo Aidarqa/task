@@ -24,6 +24,13 @@
         };
 
         window.browserNotif = {
+            _dotnetRef: null,
+
+            // Called from Blazor once on init — stores reference for click callbacks
+            setDotnetRef: function (ref) {
+                this._dotnetRef = ref;
+            },
+
             // Request permission. Returns: "granted" | "denied" | "default" | "unsupported"
             requestPermission: async function () {
                 if (!('Notification' in window)) return 'unsupported';
@@ -43,10 +50,19 @@
                     requireInteraction: false,
                     silent: false
                 });
-                n.onclick = function () {
-                    window.focus();
-                    if (url) window.location.href = url;
+                n.onclick = function (e) {
+                    e.preventDefault();
                     n.close();
+                    // Bring THIS tab to the foreground
+                    window.focus();
+                    if (!url) return;
+                    // Use Blazor's NavigationManager for in-app navigation (no new tab)
+                    if (window.browserNotif._dotnetRef) {
+                        window.browserNotif._dotnetRef.invokeMethodAsync('HandleNotificationClick', url);
+                    } else {
+                        // Fallback if Blazor not ready yet
+                        window.location.assign(url);
+                    }
                 };
                 setTimeout(() => n.close(), 7000);
             }

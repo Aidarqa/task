@@ -1935,8 +1935,11 @@ select:-webkit-autofill {
 .tdlg-check-row  { display:flex; align-items:center; gap:2px; padding:2px 0; border-radius:6px; transition:background .12s; }
 .tdlg-check-row:hover { background:var(--mud-palette-background-grey); }
 .tdlg-check-row:hover .tdlg-row-btn { opacity:1; }
+.tdlg-check-row--editing { background:var(--mud-palette-background-grey); }
 .tdlg-check-text { flex:1; font-size:.875rem; }
 .tdlg-check-done { flex:1; font-size:.875rem; text-decoration:line-through; opacity:.4; }
+.tdlg-check-editable { cursor:text; border-radius:4px; padding:2px 4px; transition:background .12s; }
+.tdlg-check-editable:hover { background:color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); outline:1px dashed var(--mud-palette-primary); outline-offset:1px; }
 .tdlg-row-btn    { opacity:0; transition:opacity .12s; }
 .tdlg-add-row    { display:flex; align-items:center; gap:8px; margin-top:12px; }
 

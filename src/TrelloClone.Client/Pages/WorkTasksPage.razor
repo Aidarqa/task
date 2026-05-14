@@ -587,15 +587,42 @@
                             <div class="tdlg-checklist">
                                 @foreach (var item in _selectedTask.Checklist.OrderBy(i => i.Position))
                                 {
-                                    <div class="tdlg-check-row">
+                                    <div class="tdlg-check-row @(_editingChecklistId == item.Id ? "tdlg-check-row--editing" : "")">
                                         <MudCheckBox T="bool" Color="Color.Primary"
                                                      Value="item.IsChecked"
                                                      ValueChanged="@(async _ => await ToggleChecklistAsync(item.Id))" />
-                                        <span class="@(item.IsChecked ? "tdlg-check-done" : "tdlg-check-text")">@item.Text</span>
-                                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
-                                                       Size="Size.Small" Color="Color.Error"
-                                                       Class="tdlg-row-btn"
-                                                       OnClick="@(() => DeleteChecklistAsync(item.Id))" />
+
+                                        @if (_editingChecklistId == item.Id)
+                                        {
+                                            <MudTextField T="string"
+                                                          Value="_editingChecklistText"
+                                                          ValueChanged="@(v => _editingChecklistText = v)"
+                                                          Variant="Variant.Text"
+                                                          Margin="Margin.Dense"
+                                                          AutoFocus="true"
+                                                          Immediate="true"
+                                                          Style="flex:1"
+                                                          OnKeyDown="HandleChecklistEditKeyDown"
+                                                          onblur="@(async () => await SaveChecklistEditAsync())" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                           Size="Size.Small" Color="Color.Success"
+                                                           OnClick="SaveChecklistEditAsync" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                           Size="Size.Small"
+                                                           OnClick="CancelChecklistEdit" />
+                                        }
+                                        else
+                                        {
+                                            <span class="@(item.IsChecked ? "tdlg-check-done" : "tdlg-check-text") tdlg-check-editable"
+                                                  title="Нажмите чтобы изменить"
+                                                  @onclick="@(() => StartChecklistEdit(item.Id, item.Text))">
+                                                @item.Text
+                                            </span>
+                                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           Class="tdlg-row-btn"
+                                                           OnClick="@(() => DeleteChecklistAsync(item.Id))" />
+                                        }
                                     </div>
                                 }
                             </div>
@@ -958,6 +985,8 @@
     private string? _addAssigneeId;
     private string _newComment = string.Empty;
     private string _newChecklistText = string.Empty;
+    private Guid? _editingChecklistId;
+    private string _editingChecklistText = string.Empty;
     private bool _pinUploads = true;
     private Project? _currentProject;
     private Guid? _lastProjectId;
@@ -1435,6 +1464,42 @@
             _newChecklistText = string.Empty;
             await LoadTasksAsync();
         }
+    }
+
+    private void StartChecklistEdit(Guid itemId, string currentText)
+    {
+        _editingChecklistId = itemId;
+        _editingChecklistText = currentText;
+    }
+
+    private void CancelChecklistEdit()
+    {
+        _editingChecklistId = null;
+        _editingChecklistText = string.Empty;
+    }
+
+    private async Task SaveChecklistEditAsync()
+    {
+        if (_editingChecklistId is null || _selectedTask is null) return;
+        var text = _editingChecklistText.Trim();
+        if (string.IsNullOrWhiteSpace(text)) { CancelChecklistEdit(); return; }
+
+        var itemId = _editingChecklistId.Value;
+        var item = _selectedTask.Checklist.FirstOrDefault(i => i.Id == itemId);
+
+        // No change — skip API call
+        if (item is not null && item.Text == text) { CancelChecklistEdit(); return; }
+
+        CancelChecklistEdit();
+
+        await TaskSvc.UpdateChecklistItemTextAsync(_selectedTask.Id, itemId, text);
+        if (item is not null) item.Text = text;
+    }
+
+    private async Task HandleChecklistEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveChecklistEditAsync();
+        else if (e.Key == "Escape") CancelChecklistEdit();
     }
 
     private async Task ToggleChecklistAsync(Guid itemId)
