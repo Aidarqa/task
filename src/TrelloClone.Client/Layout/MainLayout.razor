@@ -185,6 +185,7 @@
     private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
     private List<NotificationDto> _recentNotifications = [];
     private readonly HashSet<Guid> _handledNotificationIds = [];
+    private readonly Queue<Guid> _handledIdQueue = new();
     private DotNetObjectReference<MainLayout>? _dotNetRef;
 
     protected override async Task OnInitializedAsync()
@@ -192,6 +193,7 @@
         ThemeSvc.Changed += OnThemeChanged;
         NotificationSvc.OnNotification += OnNotificationReceived;
         NotificationSvc.OnCountChanged += OnCountChangedHandler;
+        NotificationSvc.OnReconnected += OnHubReconnected;
         Nav.LocationChanged += OnLocationChanged;
 
         try
@@ -223,8 +225,10 @@
     {
         if (!_handledNotificationIds.Add(notif.Id))
             return;
-        if (_handledNotificationIds.Count > 500)
-            _handledNotificationIds.Clear();
+        // Bounded FIFO — evict oldest ID when set grows too large
+        _handledIdQueue.Enqueue(notif.Id);
+        if (_handledIdQueue.Count > 500)
+            _handledNotificationIds.Remove(_handledIdQueue.Dequeue());
 
         if (notif.NotificationType == NotificationType.Chat)
         {
@@ -274,6 +278,27 @@
     private void OnCountChangedHandler()
     {
         _ = RefreshCountsAsync();
+    }
+
+    // Called when SignalR reconnects after a drop — re-fetch and show any missed notifications
+    private void OnHubReconnected()
+    {
+        _ = ProcessMissedNotificationsAsync();
+    }
+
+    private async Task ProcessMissedNotificationsAsync()
+    {
+        try
+        {
+            var unread = await NotificationSvc.GetAllAsync(unreadOnly: true);
+            foreach (var notif in unread)
+            {
+                // Only process ones we haven't already handled in this session
+                if (!_handledNotificationIds.Contains(notif.Id))
+                    OnNotificationReceived(notif);
+            }
+        }
+        catch { }
     }
 
     private async Task RefreshCountsAsync()
@@ -386,6 +411,7 @@
         ThemeSvc.Changed -= OnThemeChanged;
         NotificationSvc.OnNotification -= OnNotificationReceived;
         NotificationSvc.OnCountChanged -= OnCountChangedHandler;
+        NotificationSvc.OnReconnected -= OnHubReconnected;
         Nav.LocationChanged -= OnLocationChanged;
         base.Dispose();
     }

@@ -14,6 +14,7 @@ public class NotificationClientService : IAsyncDisposable
     public event Action<NotificationDto>? OnNotification;
     public event Action? OnCountChanged;
     public event Action? OnPresenceChanged;
+    public event Action? OnReconnected;
 
     public HashSet<string> OnlineUserIds { get; } = [];
 
@@ -87,6 +88,8 @@ public class NotificationClientService : IAsyncDisposable
             finally
             {
                 OnPresenceChanged?.Invoke();
+                // Notify listeners so they can re-fetch missed notifications
+                OnReconnected?.Invoke();
             }
         };
 

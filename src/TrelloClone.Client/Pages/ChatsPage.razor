@@ -520,9 +520,13 @@
     {
         if (evt.ChatId == _activeChatId)
         {
-            // Skip if already in the list (added locally or duplicate event)
+            // Always dedup by ID — handles both normal flow and the race where the
+            // SignalR event arrives before the HTTP response from SendMessageAsync.
             if (_messages.Any(m => m.Id == evt.Message.Id)) return;
-            _messages.Add(evt.Message);
+
+            // Own message from another tab: mark as own
+            var isOwn = evt.Message.SenderId == _currentUserId;
+            _messages.Add(isOwn ? evt.Message with { IsOwn = true } : evt.Message);
             _shouldScrollToBottom = true;
             _ = ChatSvc.MarkReadAsync(evt.ChatId);
             _ = InvokeAsync(StateHasChanged);
@@ -666,7 +670,10 @@
             var msg = await ChatSvc.SendMessageAsync(_activeChatId.Value, text);
             if (msg is not null)
             {
-                _messages.Add(msg with { IsOwn = true });
+                // Guard: SignalR event may have already added this message if it
+                // arrived before the HTTP response (WebSocket is faster than HTTP).
+                if (!_messages.Any(m => m.Id == msg.Id))
+                    _messages.Add(msg with { IsOwn = true });
                 _shouldScrollToBottom = true;
                 _ = ChatSvc.MarkReadAsync(_activeChatId.Value);
                 StateHasChanged();
@@ -767,7 +774,8 @@
             var message = await ChatSvc.SendFilesAsync(_activeChatId.Value, files, caption);
             if (message is not null)
             {
-                _messages.Add(message with { IsOwn = true });
+                if (!_messages.Any(m => m.Id == message.Id))
+                    _messages.Add(message with { IsOwn = true });
                 _shouldScrollToBottom = true;
                 Snackbar.Add(L["chat_files_sent"], Severity.Success);
                 StateHasChanged();
