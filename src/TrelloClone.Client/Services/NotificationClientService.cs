@@ -60,12 +60,29 @@ public class NotificationClientService : IAsyncDisposable
             OnPresenceChanged?.Invoke();
         });
 
+        _hub.Reconnected += async _ =>
+        {
+            try
+            {
+                var fresh = await _http.GetFromJsonAsync<List<string>>("api/presence") ?? [];
+                OnlineUserIds.Clear();
+                foreach (var id in fresh)
+                    OnlineUserIds.Add(id);
+                OnPresenceChanged?.Invoke();
+            }
+            catch { }
+        };
+
+        // Fetch presence snapshot before starting hub to avoid race with UserOnline/UserOffline events
+        var onlineUsers = await _http.GetFromJsonAsync<List<string>>("api/presence") ?? [];
+
         await _hub.StartAsync();
 
         OnlineUserIds.Clear();
-        var onlineUsers = await _http.GetFromJsonAsync<List<string>>("api/presence") ?? [];
         foreach (var id in onlineUsers)
             OnlineUserIds.Add(id);
+
+        OnPresenceChanged?.Invoke();
     }
 
     public async Task<List<NotificationDto>> GetAllAsync(bool unreadOnly = false, string? type = null)

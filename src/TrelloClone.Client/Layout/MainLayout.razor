@@ -248,9 +248,9 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private async void OnCountChangedHandler()
+    private void OnCountChangedHandler()
     {
-        await RefreshCountsAsync();
+        _ = RefreshCountsAsync();
     }
 
     private async Task RefreshCountsAsync()

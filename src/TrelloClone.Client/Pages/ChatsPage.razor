@@ -434,6 +434,7 @@
         ChatSvc.OnNewMessage += OnNewMessage;
         ChatSvc.OnChatRead += OnChatRead;
         ChatSvc.OnTyping += OnTyping;
+        ChatSvc.OnMessageDeleted += OnMessageDeleted;
         _users = await EmployeeSvc.GetAllAsync();
         _chats = await ChatSvc.GetChatsAsync();
 
@@ -566,6 +567,15 @@
         else
             _typingUsers.Remove(evt.UserId);
 
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnMessageDeleted(MessageDeletedEvent evt)
+    {
+        if (evt.ChatId != _activeChatId) return;
+        var idx = _messages.FindIndex(m => m.Id == evt.MessageId);
+        if (idx >= 0)
+            _messages[idx] = _messages[idx] with { IsDeleted = true, Text = L["chat_msg_deleted"], Attachments = [] };
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -926,6 +936,7 @@
         ChatSvc.OnNewMessage -= OnNewMessage;
         ChatSvc.OnChatRead -= OnChatRead;
         ChatSvc.OnTyping -= OnTyping;
+        ChatSvc.OnMessageDeleted -= OnMessageDeleted;
         _typingStopCts?.Cancel();
         if (_activeChatId.HasValue)
         {

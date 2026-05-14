@@ -71,13 +71,6 @@ public class ChatsController(
             .Take(take)
             .ToListAsync();
 
-        var member = await db.ChatMembers.FirstOrDefaultAsync(m => m.ChatId == id && m.UserId == CurrentUserId);
-        if (member is not null)
-        {
-            member.LastReadAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-        }
-
         var members = await db.ChatMembers
             .Where(m => m.ChatId == id)
             .ToListAsync();
@@ -227,6 +220,9 @@ public class ChatsController(
         message.IsDeleted = true;
         await db.SaveChangesAsync();
 
+        await chatHub.Clients.Group(id.ToString())
+            .SendAsync("MessageDeleted", new MessageDeletedEvent(id, msgId));
+
         return NoContent();
     }
 
@@ -290,7 +286,8 @@ public class ChatsController(
             NotificationType = NotificationType.Chat,
             UserId = recipient.UserId,
             Link = chatLink,
-            RelatedEntityId = chatId.ToString()
+            RelatedEntityId = chatId.ToString(),
+            SenderUserId = CurrentUserId
         }).ToList();
 
         db.Notifications.AddRange(notifications);
@@ -313,7 +310,8 @@ public class ChatsController(
                 false,
                 notification.CreatedAt,
                 notification.Link,
-                notification.RelatedEntityId);
+                notification.RelatedEntityId,
+                notification.SenderUserId);
 
             await notificationHub.Clients.Group(recipient.UserId)
                 .SendAsync("Notification", new NotificationEvent(notifDto));

@@ -19,6 +19,7 @@ public class ChatClientService : IAsyncDisposable
     public event Action<NewMessageEvent>? OnNewMessage;
     public event Action<ChatReadEvent>? OnChatRead;
     public event Action<ChatTypingEvent>? OnTyping;
+    public event Action<MessageDeletedEvent>? OnMessageDeleted;
 
     public ChatClientService(HttpClient http, ILocalStorageService localStorage, NavigationManager nav, LocalizationService l)
     {
@@ -34,6 +35,9 @@ public class ChatClientService : IAsyncDisposable
 
         if (_hub is null || _hub.State == HubConnectionState.Disconnected)
         {
+            if (_hub is not null)
+                await _hub.DisposeAsync();
+
             var token = await _localStorage.GetItemAsStringAsync("authToken");
             token = token?.Trim('"');
 
@@ -50,6 +54,7 @@ public class ChatClientService : IAsyncDisposable
             _hub.On<NewMessageEvent>("NewMessage", evt => OnNewMessage?.Invoke(NormalizeEvent(evt)));
             _hub.On<ChatReadEvent>("ChatRead", evt => OnChatRead?.Invoke(NormalizeReadEvent(evt)));
             _hub.On<ChatTypingEvent>("UserTyping", evt => OnTyping?.Invoke(evt));
+            _hub.On<MessageDeletedEvent>("MessageDeleted", evt => OnMessageDeleted?.Invoke(evt));
             _hub.Reconnected += async _ =>
             {
                 try

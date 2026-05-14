@@ -210,4 +210,5 @@ public record DashboardStats(
 public record NewMessageEvent(Guid ChatId, ChatMessageDto Message);
 public record ChatReadEvent(Guid ChatId, string UserId, DateTime ReadAt);
 public record ChatTypingEvent(Guid ChatId, string UserId, string UserName, bool IsTyping);
+public record MessageDeletedEvent(Guid ChatId, Guid MessageId);
 public record NotificationEvent(NotificationDto Notification);
