@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
 
     // ── Work Tasks ───────────────────────────────────────
     public DbSet<WorkTask>                WorkTasks          => Set<WorkTask>();
+    public DbSet<WorkTaskAssignee>        WorkTaskAssignees  => Set<WorkTaskAssignee>();
     public DbSet<WorkTaskComment>         WorkTaskComments   => Set<WorkTaskComment>();
     public DbSet<WorkTaskChecklistItem>   WorkTaskChecklists => Set<WorkTaskChecklistItem>();
     public DbSet<FileAttachment>          FileAttachments    => Set<FileAttachment>();
@@ -111,11 +112,19 @@ public class AppDbContext : DbContext
         {
             e.HasKey(t => t.Id);
             e.Property(t => t.Title).HasMaxLength(200);
+            e.HasMany(t => t.Assignees).WithOne().HasForeignKey(a => a.TaskId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(t => t.Comments).WithOne().HasForeignKey(c => c.TaskId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(t => t.Checklist).WithOne().HasForeignKey(c => c.TaskId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(t => t.Attachments).WithOne().HasForeignKey(a => a.WorkTaskId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(t => t.SubTasks).WithOne().HasForeignKey(t => t.ParentTaskId)
              .IsRequired(false).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        mb.Entity<WorkTaskAssignee>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.HasIndex(a => new { a.TaskId, a.UserId }).IsUnique();
+            e.HasIndex(a => a.UserId);
         });
 
         mb.Entity<WorkTaskComment>(e => { e.HasKey(c => c.Id); });

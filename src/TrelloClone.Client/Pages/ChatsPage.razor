@@ -286,6 +286,7 @@
                                       Margin="Margin.Dense"
                                       AutoGrow="true"
                                       Immediate="true"
+                                      Class="chat-msg-input"
                                       Style="flex:1"
                                       OnKeyDown="HandleMessageKeyDown" />
 
@@ -469,6 +470,19 @@
             await JS.InvokeVoidAsync("eval",
                 "var c=document.querySelector('.messages-area-modern');if(c)c.scrollTop=c.scrollHeight");
         }
+
+        // Prevent Enter from inserting a newline — must be done in JS before browser default fires
+        await JS.InvokeVoidAsync("eval", @"
+            (function(){
+                var t=document.querySelector('.chat-msg-input textarea');
+                if(t&&!t._noEnter){
+                    t._noEnter=true;
+                    t.addEventListener('keydown',function(e){
+                        if(e.key==='Enter'&&!e.shiftKey)e.preventDefault();
+                    });
+                }
+            })()
+        ");
     }
 
     private async Task SelectChat(ChatSummaryDto chat)
@@ -506,8 +520,8 @@
     {
         if (evt.ChatId == _activeChatId)
         {
-            // Own messages are added locally in SendMessage; skip the SignalR echo
-            if (evt.Message.SenderId == _currentUserId) return;
+            // Skip if already in the list (added locally or duplicate event)
+            if (_messages.Any(m => m.Id == evt.Message.Id)) return;
             _messages.Add(evt.Message);
             _shouldScrollToBottom = true;
             _ = ChatSvc.MarkReadAsync(evt.ChatId);
@@ -525,6 +539,9 @@
     {
         if (notif.NotificationType != NotificationType.Chat) return;
         if (!_handledChatNotificationIds.Add(notif.Id)) return;
+        // Keep the dedup set bounded to prevent unbounded memory growth
+        if (_handledChatNotificationIds.Count > 500)
+            _handledChatNotificationIds.Clear();
         if (notif.RelatedEntityId is null) return;
         if (!Guid.TryParse(notif.RelatedEntityId, out var chatId)) return;
         if (chatId == _activeChatId)
@@ -651,6 +668,7 @@
             {
                 _messages.Add(msg with { IsOwn = true });
                 _shouldScrollToBottom = true;
+                _ = ChatSvc.MarkReadAsync(_activeChatId.Value);
                 StateHasChanged();
             }
         }
@@ -668,6 +686,10 @@
 
     private Task OnMessageInputChanged(string value)
     {
+        // While sending, the browser fires a ValueChanged with "\n" from the Enter key — ignore it
+        if (_sendingMessage)
+            return Task.CompletedTask;
+
         _newMessage = value;
         if (_activeChatId.HasValue)
             _ = NotifyTypingWithDelayAsync(!string.IsNullOrWhiteSpace(value));

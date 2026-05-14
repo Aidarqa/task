@@ -71,12 +71,13 @@ public class DeadlineReminderService(
         var dayAfterTomorrowUtcStart = tomorrowUtcStart.AddDays(1);
 
         var dueTomorrow = await db.WorkTasks
+            .Include(t => t.Assignees)
             .Where(t => t.DueDate.HasValue
                 && t.DueDate.Value >= tomorrowUtcStart
                 && t.DueDate.Value < dayAfterTomorrowUtcStart
                 && t.Status != WorkTaskStatus.Done
                 && t.Status != WorkTaskStatus.Cancelled
-                && t.AssigneeId != null)
+                && t.Assignees.Any())
             .ToListAsync(ct);
 
         foreach (var task in dueTomorrow)
@@ -90,10 +91,10 @@ public class DeadlineReminderService(
 
             if (!alreadySent)
             {
-                await notif.SendAsync(
-                    task.AssigneeId!,
+                await notif.SendToManyAsync(
+                    task.Assignees.Select(a => a.UserId),
                     "Срок задачи",
-                    $"Срок выполнения задачи \"{task.Title}\" истекает завтра.",
+                    $"Срок выполнения задачи «{task.Title}» истекает завтра.",
                     NotificationType.Task,
                     $"/tasks/{task.Id}",
                     task.Id.ToString());
@@ -101,11 +102,12 @@ public class DeadlineReminderService(
         }
 
         var overdue = await db.WorkTasks
+            .Include(t => t.Assignees)
             .Where(t => t.DueDate.HasValue
                 && t.DueDate.Value < todayUtcStart
                 && t.Status != WorkTaskStatus.Done
                 && t.Status != WorkTaskStatus.Cancelled
-                && t.AssigneeId != null)
+                && t.Assignees.Any())
             .ToListAsync(ct);
 
         foreach (var task in overdue)
@@ -119,10 +121,10 @@ public class DeadlineReminderService(
 
             if (!alreadySent)
             {
-                await notif.SendAsync(
-                    task.AssigneeId!,
+                await notif.SendToManyAsync(
+                    task.Assignees.Select(a => a.UserId),
                     "Задача просрочена",
-                    $"Задача \"{task.Title}\" просрочена.",
+                    $"Задача «{task.Title}» просрочена.",
                     NotificationType.Task,
                     $"/tasks/{task.Id}",
                     task.Id.ToString());

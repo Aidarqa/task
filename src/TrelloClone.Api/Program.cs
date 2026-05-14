@@ -97,6 +97,23 @@ if (app.Environment.IsDevelopment())
 }
 
 // ── Hosted Blazor WASM ──────────────────────────────────
+// Intercept blazor.boot.json BEFORE UseBlazorFrameworkFiles serves it
+// so the browser always revalidates after a rebuild (no stale hash mismatches).
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Value?.EndsWith("blazor.boot.json", StringComparison.OrdinalIgnoreCase) == true)
+    {
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            context.Response.Headers["Pragma"] = "no-cache";
+            context.Response.Headers["Expires"] = "0";
+            return Task.CompletedTask;
+        });
+    }
+    await next();
+});
+
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 

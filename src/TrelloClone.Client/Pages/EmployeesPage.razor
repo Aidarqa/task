@@ -4,9 +4,11 @@
 @inject EmployeeService EmployeeSvc
 @inject IAuthService AuthSvc
 @inject ChatClientService ChatSvc
+@inject NotificationClientService NotifSvc
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@implements IDisposable
 
 <PageTitle>@L["emp_title"] - @L["app_name"]</PageTitle>
 
@@ -67,8 +69,14 @@
             {
                 <MudPaper Class="employee-card-modern" Elevation="0">
                     <div class="employee-card-modern__top">
-                        <div class="employee-avatar-modern" style="background:@GetAvatarColor(u.UserName)">
-                            @u.UserName[0].ToString().ToUpper()
+                        <div class="emp-avatar-wrap">
+                            <div class="employee-avatar-modern" style="background:@GetAvatarColor(u.UserName)">
+                                @u.UserName[0].ToString().ToUpper()
+                            </div>
+                            @if (NotifSvc.OnlineUserIds.Contains(u.Id))
+                            {
+                                <span class="emp-online-dot"></span>
+                            }
                         </div>
 
                         <div class="employee-header-main">
@@ -163,6 +171,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        NotifSvc.OnPresenceChanged += OnPresenceChanged;
         _loading = true;
         try
         {
@@ -173,6 +182,14 @@
         {
             _loading = false;
         }
+    }
+
+    private void OnPresenceChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public new void Dispose()
+    {
+        NotifSvc.OnPresenceChanged -= OnPresenceChanged;
+        base.Dispose();
     }
 
     private async Task OpenDirectChatAsync(string userId)

@@ -56,6 +56,30 @@ public static class SchemaBootstrapper
             ALTER TABLE "Notifications"
                 ADD COLUMN IF NOT EXISTS "SenderUserId" text NULL;
 
+            -- ── WorkTask Assignees ────────────────────────────────
+            CREATE TABLE IF NOT EXISTS "WorkTaskAssignees" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "TaskId" uuid NOT NULL,
+                "UserId" text NOT NULL,
+                "UserName" text NOT NULL,
+                "IsOwnerAssigned" boolean NOT NULL DEFAULT TRUE,
+                "AssignedById" text NOT NULL DEFAULT '',
+                "AssignedAt" timestamp with time zone NOT NULL DEFAULT NOW(),
+                CONSTRAINT "FK_WorkTaskAssignees_WorkTasks_TaskId" FOREIGN KEY ("TaskId") REFERENCES "WorkTasks" ("Id") ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_WorkTaskAssignees_TaskId_UserId" ON "WorkTaskAssignees" ("TaskId", "UserId");
+            CREATE INDEX IF NOT EXISTS "IX_WorkTaskAssignees_UserId" ON "WorkTaskAssignees" ("UserId");
+            ALTER TABLE "WorkTaskAssignees" ADD COLUMN IF NOT EXISTS "AssignedByName" text NOT NULL DEFAULT '';
+
+            -- Migrate existing single-assignee rows into WorkTaskAssignees
+            INSERT INTO "WorkTaskAssignees" ("Id", "TaskId", "UserId", "UserName", "IsOwnerAssigned", "AssignedById", "AssignedAt")
+            SELECT gen_random_uuid(), t."Id", t."AssigneeId", COALESCE(t."AssigneeName", ''), true, t."AuthorId", t."CreatedAt"
+            FROM "WorkTasks" t
+            WHERE t."AssigneeId" IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM "WorkTaskAssignees" a WHERE a."TaskId" = t."Id"
+              );
+
             -- ── RBAC ──────────────────────────────────────────────
             ALTER TABLE "Users"
                 ADD COLUMN IF NOT EXISTS "IsActive" boolean NOT NULL DEFAULT TRUE;

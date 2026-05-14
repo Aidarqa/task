@@ -120,8 +120,9 @@ public class TodoController(AppDbContext db, INotificationService notif) : Contr
         if (!becameCompleted || !item.WorkTaskId.HasValue)
             return;
 
-        var task = await db.WorkTasks.FirstOrDefaultAsync(t => t.Id == item.WorkTaskId.Value);
-        if (task is null || task.AssigneeId != CurrentUserId || task.Status == WorkTaskStatus.Done)
+        var task = await db.WorkTasks.Include(t => t.Assignees)
+            .FirstOrDefaultAsync(t => t.Id == item.WorkTaskId.Value);
+        if (task is null || !task.Assignees.Any(a => a.UserId == CurrentUserId) || task.Status == WorkTaskStatus.Done)
             return;
 
         task.Status = WorkTaskStatus.Done;

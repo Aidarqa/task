@@ -59,6 +59,22 @@ public class WorkTaskService(HttpClient http, LocalizationService l)
         return task is null ? null : NormalizeSummary(task);
     }
 
+    public async Task<WorkTaskSummary?> AddAssigneeAsync(Guid taskId, string userId)
+    {
+        var r = await http.PostAsJsonAsync($"api/worktasks/{taskId}/assignees", new AddAssigneeRequest(userId));
+        r.EnsureSuccessStatusCode();
+        var task = await r.Content.ReadFromJsonAsync<WorkTaskSummary>();
+        return task is null ? null : NormalizeSummary(task);
+    }
+
+    public async Task<WorkTaskSummary?> RemoveAssigneeAsync(Guid taskId, string userId)
+    {
+        var r = await http.DeleteAsync($"api/worktasks/{taskId}/assignees/{userId}");
+        r.EnsureSuccessStatusCode();
+        var task = await r.Content.ReadFromJsonAsync<WorkTaskSummary>();
+        return task is null ? null : NormalizeSummary(task);
+    }
+
     public async Task<WorkTaskSummary?> UpdateStatusAsync(Guid id, WorkTaskStatus status)
     {
         var r = await http.PutAsJsonAsync($"api/worktasks/{id}/status", new UpdateWorkTaskStatusRequest(status));

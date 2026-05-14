@@ -22,9 +22,10 @@ public class FilesController(AppDbContext db, IFileStorageService storage) : Con
         if (attachment.WorkTaskId.HasValue)
         {
             var task = await db.WorkTasks
+                .Include(t => t.Assignees)
                 .FirstOrDefaultAsync(t => t.Id == attachment.WorkTaskId.Value, cancellationToken);
 
-            if (task is null || (task.AuthorId != CurrentUserId && task.AssigneeId != CurrentUserId))
+            if (task is null || (task.AuthorId != CurrentUserId && !task.Assignees.Any(a => a.UserId == CurrentUserId)))
                 return Forbid();
         }
         else if (attachment.ChatId.HasValue)

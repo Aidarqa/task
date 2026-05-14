@@ -14,10 +14,12 @@ public class NotificationHub(IPresenceService presence) : Hub
         if (userId is not null)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, userId);
-            presence.UserConnected(userId);
-            // Always broadcast — covers the race where old connection hasn't closed yet
-            // when the user reconnects (e.g. re-login without full page reload).
-            await Clients.Others.SendAsync("UserOnline", userId);
+            var isFirst = presence.UserConnected(userId);
+            // Broadcast UserOnline only on the first connection so that opening a second
+            // tab doesn't fire a spurious re-render on every other client.
+            // The snapshot endpoint (api/presence) handles clients that connect after this event.
+            if (isFirst)
+                await Clients.Others.SendAsync("UserOnline", userId);
         }
         await base.OnConnectedAsync();
     }

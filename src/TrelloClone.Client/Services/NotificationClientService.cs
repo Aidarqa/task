@@ -29,8 +29,18 @@ public class NotificationClientService : IAsyncDisposable
                         or HubConnectionState.Connecting
                         or HubConnectionState.Reconnecting) return;
 
+        // Dispose stale disconnected hub before creating a fresh one
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+            _hub = null;
+        }
+
         var token = await _localStorage.GetItemAsStringAsync("authToken");
         token = token?.Trim('"');
+
+        // Don't connect without a token — hub requires authorization
+        if (string.IsNullOrWhiteSpace(token)) return;
 
         var apiBase = _http.BaseAddress!.ToString().TrimEnd('/');
 
@@ -68,19 +78,27 @@ public class NotificationClientService : IAsyncDisposable
                 OnlineUserIds.Clear();
                 foreach (var id in fresh)
                     OnlineUserIds.Add(id);
+            }
+            catch
+            {
+                // Presence data may be stale — clear to avoid showing wrong status
+                OnlineUserIds.Clear();
+            }
+            finally
+            {
                 OnPresenceChanged?.Invoke();
             }
-            catch { }
         };
 
-        // Fetch presence snapshot before starting hub to avoid race with UserOnline/UserOffline events
+        // Apply snapshot BEFORE starting hub so SignalR events flow on top of correct initial state.
+        // If we started the hub first, UserOnline/UserOffline events could arrive and then get
+        // wiped when we apply the snapshot — causing users to appear offline incorrectly.
         var onlineUsers = await _http.GetFromJsonAsync<List<string>>("api/presence") ?? [];
-
-        await _hub.StartAsync();
-
         OnlineUserIds.Clear();
         foreach (var id in onlineUsers)
             OnlineUserIds.Add(id);
+
+        await _hub.StartAsync();
 
         OnPresenceChanged?.Invoke();
     }

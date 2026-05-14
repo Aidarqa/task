@@ -24,12 +24,12 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         var accessibleTasks = db.WorkTasks.Where(t =>
             t.ParentTaskId == null &&
-            (t.AssigneeId == CurrentUserId || t.AuthorId == CurrentUserId));
+            (t.Assignees.Any(a => a.UserId == CurrentUserId) || t.AuthorId == CurrentUserId));
 
         var totalTasks = await accessibleTasks.CountAsync(t => t.Status != WorkTaskStatus.Cancelled);
         var myTasks = await db.WorkTasks.CountAsync(t => t.ParentTaskId == null &&
             t.Status != WorkTaskStatus.Cancelled && t.Status != WorkTaskStatus.Done &&
-            t.AssigneeId == CurrentUserId);
+            t.AuthorId == CurrentUserId);
         var overdue = await accessibleTasks.CountAsync(t =>
             t.Status != WorkTaskStatus.Done && t.Status != WorkTaskStatus.Cancelled &&
             t.DueDate < nowUtc);
@@ -43,7 +43,8 @@ public class DashboardController(AppDbContext db) : ControllerBase
 
         var recentTasks = await db.WorkTasks
             .Include(t => t.SubTasks).Include(t => t.Comments).Include(t => t.Checklist)
-            .Where(t => t.ParentTaskId == null && (t.AssigneeId == CurrentUserId || t.AuthorId == CurrentUserId))
+            .Include(t => t.Assignees)
+            .Where(t => t.ParentTaskId == null && (t.Assignees.Any(a => a.UserId == CurrentUserId) || t.AuthorId == CurrentUserId))
             .OrderByDescending(t => t.UpdatedAt)
             .Take(15)
             .ToListAsync();
@@ -62,7 +63,8 @@ public class DashboardController(AppDbContext db) : ControllerBase
             unreadNotifications, upcomingEvents,
             recentTasks.Select(t => new WorkTaskSummary(
                 t.Id, t.Title, t.Status, t.Priority,
-                t.AuthorId, t.AuthorName, t.AssigneeId, t.AssigneeName,
+                t.AuthorId, t.AuthorName,
+                t.Assignees.Select(a => new WorkTaskAssigneeDto(a.UserId, a.UserName, a.IsOwnerAssigned, a.AssignedById, a.AssignedByName)).ToList(),
                 t.DueDate, t.CreatedAt, t.SubTasks.Count, t.Comments.Count,
                 t.Checklist.Count, t.Checklist.Count(c => c.IsChecked), t.ProjectId, null)).ToList(),
             todayEvents.Select(e => new CalendarEventDto(

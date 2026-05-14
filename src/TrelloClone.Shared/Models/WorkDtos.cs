@@ -23,7 +23,7 @@ public record CreateWorkTaskRequest(
     [Required, MaxLength(200)] string Title,
     string? Description,
     WorkTaskPriority Priority = WorkTaskPriority.Medium,
-    string? AssigneeId = null,
+    string[]? AssigneeIds = null,
     DateTime? StartDate = null,
     DateTime? DueDate = null,
     Guid? ParentTaskId = null,
@@ -36,15 +36,25 @@ public record UpdateWorkTaskRequest(
     string? Description,
     WorkTaskStatus Status,
     WorkTaskPriority Priority,
-    string? AssigneeId,
+    string[]? AssigneeIds,
     DateTime? StartDate,
     DateTime? DueDate,
     string[]? Tags
 );
 
+public record AddAssigneeRequest([Required] string UserId);
+
+public record WorkTaskAssigneeDto(
+    string UserId,
+    string UserName,
+    bool IsOwnerAssigned,
+    string AssignedById = "",
+    string AssignedByName = "");
+
 public record WorkTaskSummary(
     Guid Id, string Title, WorkTaskStatus Status, WorkTaskPriority Priority,
-    string AuthorId, string AuthorName, string? AssigneeId, string? AssigneeName,
+    string AuthorId, string AuthorName,
+    List<WorkTaskAssigneeDto> Assignees,
     DateTime? DueDate, DateTime CreatedAt, int SubTaskCount, int CommentCount,
     int ChecklistTotal, int ChecklistDone, Guid? ProjectId, string? ProjectName
 );
@@ -57,8 +67,7 @@ public record WorkTaskDetailDto(
     WorkTaskPriority Priority,
     string AuthorId,
     string AuthorName,
-    string? AssigneeId,
-    string? AssigneeName,
+    List<WorkTaskAssigneeDto> Assignees,
     DateTime? StartDate,
     DateTime? DueDate,
     DateTime CreatedAt,

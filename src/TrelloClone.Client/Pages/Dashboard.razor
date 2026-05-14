@@ -42,7 +42,7 @@
                 </div>
             </MudPaper>
 
-            <MudPaper Class="stat-card-modern" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks"))">
+            <MudPaper Class="stat-card-modern" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks?author=true"))">
                 <div class="stat-icon-modern stat-icon-modern--green">
                     <MudIcon Icon="@Icons.Material.Filled.PersonPin" />
                 </div>
@@ -55,7 +55,7 @@
             @{
                 var overdueClass = $"stat-card-modern {(_stats.OverdueTasks > 0 ? "stat-card-modern--danger" : "")}";
             }
-            <MudPaper Class="@overdueClass" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks"))">
+            <MudPaper Class="@overdueClass" Elevation="0" @onclick="@(() => Nav.NavigateTo("/tasks?overdue=true"))">
                 <div class="stat-icon-modern stat-icon-modern--red">
                     <MudIcon Icon="@Icons.Material.Filled.Warning" />
                 </div>

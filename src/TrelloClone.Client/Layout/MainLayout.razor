@@ -5,6 +5,7 @@
 @inject ThemeService ThemeSvc
 @inject Blazored.LocalStorage.ILocalStorageService Storage
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Class="app-topbar">
@@ -203,6 +204,7 @@
                 ThemeSvc.Set(dark.Value);
 
             await NotificationSvc.ConnectAsync();
+            _ = JS.InvokeAsync<string>("browserNotif.requestPermission");
             _unreadCount = await NotificationSvc.GetUnreadCountAsync();
             _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
             _recentNotifications = (await NotificationSvc.GetAllAsync())
@@ -220,6 +222,8 @@
     {
         if (!_handledNotificationIds.Add(notif.Id))
             return;
+        if (_handledNotificationIds.Count > 500)
+            _handledNotificationIds.Clear();
 
         if (notif.NotificationType == NotificationType.Chat)
         {
@@ -227,6 +231,13 @@
             {
                 _unreadCount++;
                 _chatUnreadCount++;
+
+                // Browser notification when tab is not visible
+                _ = JS.InvokeVoidAsync("browserNotif.show",
+                    notif.Title,
+                    notif.Body,
+                    notif.Link ?? "/chats",
+                    $"chat-{notif.RelatedEntityId}");
             }
             else
             {
@@ -245,6 +256,14 @@
 
         var msg = notif.Body is not null ? $"{notif.Title}: {notif.Body}" : notif.Title;
         Snackbar.Add(msg, Severity.Info);
+
+        // Browser notification for non-chat notifications when tab is not visible
+        _ = JS.InvokeVoidAsync("browserNotif.show",
+            notif.Title,
+            notif.Body,
+            notif.Link,
+            $"notif-{notif.NotificationType}");
+
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -322,6 +341,20 @@
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         _ = RefreshCountsAsync();
+        _ = EnsureHubConnectedAsync();
+    }
+
+    private async Task EnsureHubConnectedAsync()
+    {
+        try
+        {
+            await NotificationSvc.ConnectAsync();
+            // If we just reconnected, refresh counts which may have been unavailable before
+            _unreadCount = await NotificationSvc.GetUnreadCountAsync();
+            _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
     }
 
     private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);

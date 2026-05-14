@@ -52,7 +52,8 @@
         <MudPaper Class="booking-filter-panel" Elevation="0">
             <div class="booking-filter-grid">
                 <MudSelect T="Guid?"
-                           @bind-Value="_filterResourceId"
+                           Value="_filterResourceId"
+                           ValueChanged="OnFilterResourceChangedAsync"
                            Label="@L["book_resource"]"
                            Margin="Margin.Dense"
                            Dense="true"
@@ -64,12 +65,14 @@
                     }
                 </MudSelect>
 
-                <MudDatePicker @bind-Date="_filterFrom"
+                <MudDatePicker Date="_filterFrom"
+                               DateChanged="OnFilterFromChangedAsync"
                                Margin="Margin.Dense"
                                Label="@L["book_from"]"
                                Variant="Variant.Outlined" />
 
-                <MudDatePicker @bind-Date="_filterTo"
+                <MudDatePicker Date="_filterTo"
+                               DateChanged="OnFilterToChangedAsync"
                                Margin="Margin.Dense"
                                Label="@L["book_to"]"
                                Variant="Variant.Outlined" />
@@ -90,13 +93,6 @@
                            Color="Color.Primary"
                            Label="@L["book_mine"]"
                            Class="booking-mine-switch" />
-
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           OnClick="ApplyBookingFiltersAsync"
-                           Class="booking-filter-btn">
-                    @L["book_find"]
-                </MudButton>
             </div>
 
             <div class="booking-quick-filters">
@@ -546,6 +542,24 @@
     {
         _bookingPage = 1;
         await LoadBookingsAsync();
+    }
+
+    private async Task OnFilterResourceChangedAsync(Guid? value)
+    {
+        _filterResourceId = value;
+        await ApplyBookingFiltersAsync();
+    }
+
+    private async Task OnFilterFromChangedAsync(DateTime? value)
+    {
+        _filterFrom = value;
+        await ApplyBookingFiltersAsync();
+    }
+
+    private async Task OnFilterToChangedAsync(DateTime? value)
+    {
+        _filterTo = value;
+        await ApplyBookingFiltersAsync();
     }
 
     private async Task ApplyQuickRangeAsync(BookingQuickRange range)

@@ -116,14 +116,16 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
             .Include(t => t.SubTasks)
             .Include(t => t.Comments)
             .Include(t => t.Checklist)
+            .Include(t => t.Assignees)
             .Where(t => t.ProjectId == id
                 && t.ParentTaskId == null
-                && (t.AssigneeId == CurrentUserId || t.AuthorId == CurrentUserId))
+                && (t.Assignees.Any(a => a.UserId == CurrentUserId) || t.AuthorId == CurrentUserId))
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
         return Ok(tasks.Select(t => new WorkTaskSummary(
             t.Id, t.Title, t.Status, t.Priority,
-            t.AuthorId, t.AuthorName, t.AssigneeId, t.AssigneeName,
+            t.AuthorId, t.AuthorName,
+            t.Assignees.Select(a => new WorkTaskAssigneeDto(a.UserId, a.UserName, a.IsOwnerAssigned, a.AssignedById, a.AssignedByName)).ToList(),
             t.DueDate, t.CreatedAt, t.SubTasks.Count, t.Comments.Count,
             t.Checklist.Count, t.Checklist.Count(c => c.IsChecked), t.ProjectId, null)));
     }

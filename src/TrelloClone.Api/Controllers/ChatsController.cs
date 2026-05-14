@@ -235,14 +235,15 @@ public class ChatsController(
 
         member.LastReadAt = DateTime.UtcNow;
 
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await db.SaveChangesAsync();
         await db.Notifications
             .Where(n => n.UserId == CurrentUserId
                      && !n.IsRead
                      && n.NotificationType == NotificationType.Chat
                      && n.RelatedEntityId == id.ToString())
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
-
-        await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         await chatHub.Clients.Group(id.ToString())
             .SendAsync("ChatRead", new ChatReadEvent(id, CurrentUserId, member.LastReadAt.Value));
@@ -362,7 +363,10 @@ public class ChatsController(
             return "Сообщение удалено";
 
         if (!string.IsNullOrWhiteSpace(message.Text))
-            return message.Text;
+        {
+            var t = message.Text;
+            return t.Length > 120 ? t[..120] + "…" : t;
+        }
 
         if (message.Attachments.Count == 1)
             return $"Файл: {message.Attachments[0].FileName}";

@@ -22,41 +22,43 @@
             </MudText>
         </div>
 
-        <MudStack Spacing="3" Class="auth-form-stack">
-            <MudTextField @bind-Value="_email"
-                          Label="@L["login_email"]"
-                          Variant="Variant.Outlined"
-                          InputType="InputType.Email"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Email"
-                          Class="auth-input" />
+        <EditForm Model="this" OnValidSubmit="HandleSubmit">
+            <MudStack Spacing="3" Class="auth-form-stack">
+                <MudTextField @bind-Value="_email"
+                              Label="@L["login_email"]"
+                              Variant="Variant.Outlined"
+                              InputType="InputType.Email"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Email"
+                              Class="auth-input" />
 
-            <MudTextField @bind-Value="_password"
-                          Label="@L["login_password"]"
-                          Variant="Variant.Outlined"
-                          InputType="@(_showPassword ? InputType.Text : InputType.Password)"
-                          Adornment="Adornment.End"
-                          AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
-                          OnAdornmentClick="() => _showPassword = !_showPassword"
-                          Class="auth-input" />
+                <MudTextField @bind-Value="_password"
+                              Label="@L["login_password"]"
+                              Variant="Variant.Outlined"
+                              InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                              OnAdornmentClick="() => _showPassword = !_showPassword"
+                              Class="auth-input" />
 
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       FullWidth="true"
-                       Size="Size.Large"
-                       OnClick="HandleSubmit"
-                       Disabled="_loading"
-                       Class="auth-submit-btn">
-                @if (_loading)
-                {
-                    <MudProgressCircular Size="Size.Small"
-                                         Color="Color.Inherit"
-                                         Indeterminate="true"
-                                         Class="mr-2" />
-                }
-                @L["login_btn"]
-            </MudButton>
-        </MudStack>
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Size="Size.Large"
+                           Disabled="_loading"
+                           Class="auth-submit-btn">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Size="Size.Small"
+                                             Color="Color.Inherit"
+                                             Indeterminate="true"
+                                             Class="mr-2" />
+                    }
+                    @L["login_btn"]
+                </MudButton>
+            </MudStack>
+        </EditForm>
     </MudPaper>
 </div>
 

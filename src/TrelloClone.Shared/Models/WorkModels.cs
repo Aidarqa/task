@@ -33,8 +33,6 @@ public class WorkTask
     public WorkTaskPriority Priority { get; set; } = WorkTaskPriority.Medium;
     public string AuthorId { get; set; } = string.Empty;
     public string AuthorName { get; set; } = string.Empty;
-    public string? AssigneeId { get; set; }
-    public string? AssigneeName { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? DueDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -42,10 +40,25 @@ public class WorkTask
     public Guid? ParentTaskId { get; set; }
     public Guid? ProjectId { get; set; }
     public string? TagsJson { get; set; }
+    public List<WorkTaskAssignee> Assignees { get; set; } = [];
     public List<WorkTask> SubTasks { get; set; } = [];
     public List<WorkTaskComment> Comments { get; set; } = [];
     public List<WorkTaskChecklistItem> Checklist { get; set; } = [];
     public List<FileAttachment> Attachments { get; set; } = [];
+}
+
+// ── Work Task Assignee ───────────────────────────────────
+public class WorkTaskAssignee
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TaskId { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    // true = назначен автором задачи (защищён от удаления другими исполнителями)
+    public bool IsOwnerAssigned { get; set; }
+    public string AssignedById { get; set; } = string.Empty;
+    public string AssignedByName { get; set; } = string.Empty;
+    public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
 }
 
 // ── Work Task Comment ────────────────────────────────────
