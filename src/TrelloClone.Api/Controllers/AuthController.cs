@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -50,5 +51,31 @@ public class AuthController(AppDbContext db, ITokenService tokenService) : Contr
 
         var token = await tokenService.GenerateTokenAsync(user);
         return Ok(new AuthResponse(true, token, user.Id, user.UserName, null));
+    }
+
+    /// <summary>
+    /// Self-service password change for the currently authenticated user.
+    /// Requires the current password to be supplied for verification.
+    /// </summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest req)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return Unauthorized();
+
+        if (!BCrypt.Net.BCrypt.Verify(req.CurrentPassword, user.PasswordHash))
+            return BadRequest(new { error = "Current password is incorrect" });
+
+        if (req.CurrentPassword == req.NewPassword)
+            return BadRequest(new { error = "New password must differ from the current one" });
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 }

@@ -5,6 +5,7 @@
 @inject ThemeService ThemeSvc
 @inject ISnackbar Snackbar
 @inject Blazored.LocalStorage.ILocalStorageService Storage
+@inject IDialogService Dialog
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
 
@@ -121,6 +122,25 @@
                         </MudButton>
                     </MudButtonGroup>
                 </MudPaper>
+
+                <MudPaper Class="settings-section-card" Elevation="0">
+                    <div class="settings-section-header">
+                        <MudText Typo="Typo.h6">Безопасность</MudText>
+                        <MudText Typo="Typo.body2" Class="settings-section-subtitle">
+                            Управление паролем учётной записи
+                        </MudText>
+                    </div>
+
+                    <div class="settings-actions-row">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Password"
+                                   OnClick="OpenChangePassword"
+                                   Class="settings-action-btn">
+                            Сменить пароль
+                        </MudButton>
+                    </div>
+                </MudPaper>
             </div>
         </MudStack>
     }
@@ -172,5 +192,11 @@
     {
         ThemeSvc.Set(dark);
         await Storage.SetItemAsync("darkMode", dark);
+    }
+
+    private async Task OpenChangePassword()
+    {
+        var dlg = await Dialog.ShowAsync<ChangePasswordDialog>("Смена пароля");
+        await dlg.Result;
     }
 }

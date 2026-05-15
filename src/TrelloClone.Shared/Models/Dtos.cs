@@ -22,6 +22,11 @@ public record AuthResponse(
     string? Error
 );
 
+public record ChangePasswordRequest(
+    [Required] string CurrentPassword,
+    [Required, MinLength(6)] string NewPassword
+);
+
 // ── Board DTOs ──────────────────────────────────────────
 public record CreateBoardRequest(
     [Required, MaxLength(120)] string Title,

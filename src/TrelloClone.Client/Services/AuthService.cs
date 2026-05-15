@@ -9,6 +9,7 @@ public interface IAuthService
 {
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task LogoutAsync();
+    Task<HttpResponseMessage> ChangePasswordAsync(ChangePasswordRequest request);
     Task<string?> GetUserIdAsync();
     Task<string?> GetUserNameAsync();
 }
@@ -50,6 +51,9 @@ public class AuthService : IAuthService
         await _localStorage.RemoveItemAsync("userName");
         ((JwtAuthStateProvider)_authState).NotifyAuthStateChanged();
     }
+
+    public Task<HttpResponseMessage> ChangePasswordAsync(ChangePasswordRequest request) =>
+        _http.PostAsJsonAsync("api/auth/change-password", request);
 
     public async Task<string?> GetUserIdAsync() =>
         await _localStorage.GetItemAsStringAsync("userId");
