@@ -914,6 +914,18 @@
                 <MudSelectItem Value="WorkTaskPriority.Critical">@L["priority_critical_f"]</MudSelectItem>
             </MudSelect>
 
+            <div class="cal-participants-label">
+                <span class="cal-participants-label__text">@L["tasks_assignee"]</span>
+                @if (_users.Count > 0)
+                {
+                    var allAssigned = _newAssigneeIds.Count() == _users.Count;
+                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                               StartIcon="@(allAssigned ? Icons.Material.Filled.RemoveDone : Icons.Material.Filled.DoneAll)"
+                               OnClick="@(() => { _newAssigneeIds = allAssigned ? (IEnumerable<string>)[] : _users.Select(u => u.Id).ToList(); })">
+                        @(allAssigned ? L["cal_deselect_all"] : L["cal_select_all"])
+                    </MudButton>
+                }
+            </div>
             <MudSelect T="string"
                        @bind-SelectedValues="_newAssigneeIds"
                        Label="@L["tasks_assignee"]"

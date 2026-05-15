@@ -216,14 +216,26 @@
 
             @if (_visibility == ProjectVisibility.SelectedUsers)
             {
+                var availableUsers = _users.Where(u => u.Id != _currentUserId).ToList();
+                var allSelected = _selectedMemberIds.Count() == availableUsers.Count && availableUsers.Count > 0;
+                <div class="cal-participants-label mt-3">
+                    <span class="cal-participants-label__text">@L["proj_members"]</span>
+                    @if (availableUsers.Count > 0)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                   StartIcon="@(allSelected ? Icons.Material.Filled.RemoveDone : Icons.Material.Filled.DoneAll)"
+                                   OnClick="@(() => { _selectedMemberIds = allSelected ? (IEnumerable<string>)[] : availableUsers.Select(u => u.Id).ToList(); })">
+                            @(allSelected ? L["cal_deselect_all"] : L["cal_select_all"])
+                        </MudButton>
+                    }
+                </div>
                 <MudSelect T="string"
                            @bind-SelectedValues="_selectedMemberIds"
                            Label="@L["proj_members"]"
                            MultiSelection="true"
                            MultiSelectionTextFunc="FormatSelectedMembers"
-                           Variant="Variant.Outlined"
-                           Class="mt-3">
-                    @foreach (var user in _users.Where(u => u.Id != _currentUserId).OrderBy(u => u.UserName))
+                           Variant="Variant.Outlined">
+                    @foreach (var user in availableUsers.OrderBy(u => u.UserName))
                     {
                         <MudSelectItem Value="@user.Id">@user.UserName</MudSelectItem>
                     }

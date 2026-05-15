@@ -3,12 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TrelloClone.Api.Data;
+using TrelloClone.Api.Services;
 using TrelloClone.Shared.Models;
 
 namespace TrelloClone.Api.Controllers;
 
 [ApiController, Route("api/[controller]"), Authorize]
-public class NotificationsController(AppDbContext db) : ControllerBase
+public class NotificationsController(AppDbContext db, INotificationService notif) : ControllerBase
 {
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -39,6 +40,15 @@ public class NotificationsController(AppDbContext db) : ControllerBase
     {
         var count = await db.Notifications.CountAsync(n =>
             n.UserId == CurrentUserId && !n.IsRead && n.NotificationType == NotificationType.Chat);
+        return Ok(count);
+    }
+
+    // GET /api/notifications/system-count
+    [HttpGet("system-count")]
+    public async Task<IActionResult> GetSystemUnreadCount()
+    {
+        var count = await db.Notifications.CountAsync(n =>
+            n.UserId == CurrentUserId && !n.IsRead && n.NotificationType == NotificationType.System);
         return Ok(count);
     }
 
@@ -84,5 +94,26 @@ public class NotificationsController(AppDbContext db) : ControllerBase
         db.Notifications.Remove(n);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // POST /api/notifications/broadcast  (admin only)
+    [HttpPost("broadcast")]
+    [Authorize(Policy = Permissions.AdminAccess)]
+    public async Task<IActionResult> Broadcast(BroadcastNotificationRequest req)
+    {
+        var userIds = await db.Users
+            .Where(u => u.IsActive)
+            .Select(u => u.Id)
+            .ToListAsync();
+
+        await notif.SendToManyAsync(
+            userIds,
+            req.Title,
+            req.Body,
+            NotificationType.System,
+            req.Link,
+            senderUserId: CurrentUserId);
+
+        return Ok(new { sent = userIds.Count });
     }
 }

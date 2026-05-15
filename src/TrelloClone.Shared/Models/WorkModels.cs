@@ -242,7 +242,7 @@ public class ProjectMember
 public enum WorkTaskStatus   { New, InProgress, Review, Done, Cancelled }
 public enum WorkTaskPriority { Low, Medium, High, Critical }
 public enum SystemRole       { Admin, Manager, Employee, Viewer }
-public enum CalendarEventType { Meeting, Task, Personal, TeamEvent }
+public enum CalendarEventType { Meeting, Task, Personal, TeamEvent, Training, Interview, Deadline, Other }
 public enum ParticipantStatus { Pending, Accepted, Declined }
 public enum ResourceType     { Room, Equipment, Vehicle, Other }
 public enum BookingStatus    { Confirmed, Cancelled, Pending }

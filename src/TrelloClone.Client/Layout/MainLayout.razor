@@ -26,6 +26,19 @@
 
         <AuthorizeView>
             <Authorized>
+                @if (_systemUnreadCount > 0)
+                {
+                    <MudTooltip Text="@($"{_systemUnreadCount} системных уведомлений")" Placement="Placement.Bottom">
+                        <MudBadge Content="@_systemUnreadCount" Color="Color.Warning"
+                                  Overlap="true" Visible="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Campaign"
+                                           Size="Size.Small"
+                                           Color="Color.Warning"
+                                           OnClick="@(() => Nav.NavigateTo("/notifications"))" />
+                        </MudBadge>
+                    </MudTooltip>
+                }
+
                 <MudMenu AnchorOrigin="Origin.BottomRight"
                          TransformOrigin="Origin.TopRight"
                          Dense="true">
@@ -162,6 +175,8 @@
                                     Icon="@Icons.Material.Outlined.ManageAccounts">Пользователи</MudNavLink>
                         <MudNavLink Href="/admin/roles" Match="NavLinkMatch.Prefix"
                                     Icon="@Icons.Material.Outlined.AdminPanelSettings">Роли и права</MudNavLink>
+                        <MudNavLink Href="/admin/notifications" Match="NavLinkMatch.Prefix"
+                                    Icon="@Icons.Material.Outlined.Campaign">Рассылка уведомлений</MudNavLink>
                     </AuthorizeView>
 
                     <div class="sidebar-bottom">
@@ -182,6 +197,7 @@
     private bool _drawerOpen = true;
     private int _unreadCount;
     private int _chatUnreadCount;
+    private int _systemUnreadCount;
     private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
     private List<NotificationDto> _recentNotifications = [];
     private readonly HashSet<Guid> _handledNotificationIds = [];
@@ -210,6 +226,7 @@
             _ = JS.InvokeAsync<string>("browserNotif.requestPermission");
             _unreadCount = await NotificationSvc.GetUnreadCountAsync();
             _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
+            _systemUnreadCount = await NotificationSvc.GetSystemUnreadCountAsync();
             _recentNotifications = (await NotificationSvc.GetAllAsync())
                 .Where(n => n.NotificationType != NotificationType.Chat)
                 .Take(5)
@@ -307,6 +324,7 @@
         {
             _unreadCount = await NotificationSvc.GetUnreadCountAsync();
             _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
+            _systemUnreadCount = await NotificationSvc.GetSystemUnreadCountAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch { }
@@ -341,7 +359,7 @@
         NotificationType.Event => L["notif_type_event"],
         NotificationType.Booking => L["notif_type_booking"],
         NotificationType.Chat => L["notif_type_chat"],
-        NotificationType.System => L["notif_type_project"],
+        NotificationType.System => L["notif_type_system"],
         _ => L["notif_type_system"],
     };
 
@@ -351,7 +369,7 @@
         NotificationType.Event => Icons.Material.Filled.Event,
         NotificationType.Booking => Icons.Material.Filled.MeetingRoom,
         NotificationType.Chat => Icons.Material.Filled.Chat,
-        NotificationType.System => Icons.Material.Filled.FolderOpen,
+        NotificationType.System => Icons.Material.Filled.Campaign,
         _ => Icons.Material.Filled.Info,
     };
 

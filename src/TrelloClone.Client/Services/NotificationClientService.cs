@@ -121,6 +121,9 @@ public class NotificationClientService : IAsyncDisposable
     public async Task<int> GetChatUnreadCountAsync()
         => await _http.GetFromJsonAsync<int>("api/notifications/chat-count");
 
+    public async Task<int> GetSystemUnreadCountAsync()
+        => await _http.GetFromJsonAsync<int>("api/notifications/system-count");
+
     public async Task MarkReadAsync(Guid id)
     {
         await _http.PutAsync($"api/notifications/{id}/read", null);
@@ -135,6 +138,16 @@ public class NotificationClientService : IAsyncDisposable
 
     public async Task DeleteAsync(Guid id)
         => (await _http.DeleteAsync($"api/notifications/{id}")).EnsureSuccessStatusCode();
+
+    public async Task<int> BroadcastAsync(BroadcastNotificationRequest req)
+    {
+        var r = await _http.PostAsJsonAsync("api/notifications/broadcast", req);
+        r.EnsureSuccessStatusCode();
+        var result = await r.Content.ReadFromJsonAsync<BroadcastResult>();
+        return result?.Sent ?? 0;
+    }
+
+    private record BroadcastResult(int Sent);
 
     // Mark all chat notifications for a specific chat as read (called when opening that chat)
     public async Task MarkChatNotificationsReadAsync(Guid chatId)

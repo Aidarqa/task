@@ -1,0 +1,201 @@
+@page "/admin/notifications"
+@attribute [Authorize(Policy = TrelloClone.Shared.Models.Permissions.AdminAccess)]
+@inherits LocalizedBase
+@inject NotificationClientService NotifSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Системные уведомления - @L["app_name"]</PageTitle>
+
+<div class="admin-notif-page">
+    <MudPaper Class="admin-notif-hero" Elevation="0">
+        <div>
+            <MudText Typo="Typo.h4" Class="admin-notif-title">Системные уведомления</MudText>
+            <MudText Typo="Typo.body2" Class="admin-notif-subtitle">
+                Отправка уведомлений всем активным пользователям системы
+            </MudText>
+        </div>
+    </MudPaper>
+
+    <div class="admin-notif-layout">
+        @* ── Форма рассылки ── *@
+        <MudPaper Class="admin-notif-form-card" Elevation="0">
+            <div class="admin-notif-form-header">
+                <MudIcon Icon="@Icons.Material.Outlined.Campaign" Size="Size.Medium" Color="Color.Primary" />
+                <MudText Typo="Typo.h6">Новое уведомление</MudText>
+            </div>
+
+            <MudStack Spacing="3" Class="mt-3">
+                <MudTextField @bind-Value="_title"
+                              Label="Заголовок"
+                              Placeholder="Например: Плановые работы 15 июня"
+                              Variant="Variant.Outlined"
+                              MaxLength="200"
+                              Counter="200"
+                              Required="true"
+                              RequiredError="Заголовок обязателен" />
+
+                <MudTextField @bind-Value="_body"
+                              Label="Текст уведомления"
+                              Placeholder="Опишите подробности..."
+                              Variant="Variant.Outlined"
+                              Lines="4"
+                              MaxLength="1000"
+                              Counter="1000" />
+
+                <MudTextField @bind-Value="_link"
+                              Label="Ссылка (необязательно)"
+                              Placeholder="/tasks, /calendar, https://..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Outlined.Link" />
+
+                <div class="admin-notif-preview">
+                    <MudText Typo="Typo.caption" Class="admin-notif-preview-label">Предпросмотр</MudText>
+                    <div class="admin-notif-preview-card">
+                        <div class="admin-notif-preview-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Size="Size.Small" />
+                        </div>
+                        <div>
+                            <div class="admin-notif-preview-title">
+                                @(string.IsNullOrWhiteSpace(_title) ? "Заголовок уведомления" : _title)
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(_body))
+                            {
+                                <div class="admin-notif-preview-body">@_body</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Large"
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Send"
+                           Disabled="@(_sending || string.IsNullOrWhiteSpace(_title))"
+                           OnClick="ConfirmSendAsync">
+                    @if (_sending)
+                    {
+                        <MudProgressCircular Size="Size.Small" Color="Color.Inherit" Indeterminate="true" Class="mr-2" />
+                    }
+                    Отправить всем пользователям
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        @* ── История рассылок ── *@
+        <MudPaper Class="admin-notif-history-card" Elevation="0">
+            <div class="admin-notif-form-header">
+                <MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Medium" Color="Color.Default" />
+                <MudText Typo="Typo.h6">История</MudText>
+                @if (_history.Count > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Class="ml-auto">@_history.Count</MudChip>
+                }
+            </div>
+
+            @if (_loadingHistory)
+            {
+                <div class="admin-notif-history-loading">
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+                </div>
+            }
+            else if (_history.Count == 0)
+            {
+                <div class="admin-notif-history-empty">
+                    <MudIcon Icon="@Icons.Material.Outlined.NotificationsNone" Size="Size.Large" Style="opacity:.2" />
+                    <MudText Typo="Typo.body2" Style="opacity:.5">Рассылок ещё не было</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="admin-notif-history-list">
+                    @foreach (var n in _history)
+                    {
+                        <div class="admin-notif-history-item">
+                            <div class="admin-notif-history-item__icon">
+                                <MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" Color="Color.Primary" />
+                            </div>
+                            <div class="admin-notif-history-item__body">
+                                <div class="admin-notif-history-item__title">@n.Title</div>
+                                @if (n.Body is not null)
+                                {
+                                    <div class="admin-notif-history-item__text">@n.Body</div>
+                                }
+                                <div class="admin-notif-history-item__meta">
+                                    @KyrgyzstanTime.FormatDateTime(n.CreatedAt)
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </div>
+</div>
+
+@code {
+    private string _title = "";
+    private string _body = "";
+    private string? _link;
+    private bool _sending;
+    private bool _loadingHistory = true;
+    private List<NotificationDto> _history = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _loadingHistory = true;
+        try
+        {
+            // Load recent system notifications sent by anyone (they're in my own feed too)
+            _history = await NotifSvc.GetAllAsync(type: "System");
+            _history = _history.OrderByDescending(n => n.CreatedAt).Take(20).ToList();
+        }
+        catch { }
+        finally { _loadingHistory = false; }
+    }
+
+    private async Task ConfirmSendAsync()
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Отправить уведомление?",
+            $"Уведомление «{_title}» будет отправлено всем активным пользователям системы.",
+            yesText: "Отправить",
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed == true)
+            await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_title)) return;
+
+        _sending = true;
+        try
+        {
+            var sent = await NotifSvc.BroadcastAsync(
+                new BroadcastNotificationRequest(_title.Trim(), _body.Trim(), _link?.Trim()));
+
+            Snackbar.Add($"Уведомление отправлено {sent} пользователям", Severity.Success);
+            _title = "";
+            _body = "";
+            _link = null;
+            await LoadHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+}

@@ -44,6 +44,11 @@ public record UpdateWorkTaskRequest(
 
 public record AddAssigneeRequest([Required] string UserId);
 
+public record BroadcastNotificationRequest(
+    [Required, MaxLength(200)] string Title,
+    [Required, MaxLength(1000)] string Body,
+    [MaxLength(500)] string? Link = null);
+
 public record WorkTaskAssigneeDto(
     string UserId,
     string UserName,
