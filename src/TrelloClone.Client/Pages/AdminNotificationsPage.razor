@@ -113,6 +113,9 @@
                 <div class="admin-notif-history-list">
                     @foreach (var n in _history)
                     {
+                        var isLong = n.Body is not null && (n.Body.Length > 150 || n.Body.Contains('\n'));
+                        var isExpanded = _expandedHistoryIds.Contains(n.Id);
+
                         <div class="admin-notif-history-item">
                             <div class="admin-notif-history-item__icon">
                                 <MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" Color="Color.Primary" />
@@ -121,7 +124,16 @@
                                 <div class="admin-notif-history-item__title">@n.Title</div>
                                 @if (n.Body is not null)
                                 {
-                                    <div class="admin-notif-history-item__text">@n.Body</div>
+                                    <div class="@("admin-notif-history-item__text" + (isLong && !isExpanded ? " admin-notif-history-item__text--collapsed" : ""))">
+                                        @n.Body
+                                    </div>
+                                    @if (isLong)
+                                    {
+                                        <button type="button" class="notification-read-more"
+                                                @onclick="@(() => ToggleHistoryExpand(n.Id))">
+                                            @(isExpanded ? "▲ Свернуть" : "▼ Читать полностью")
+                                        </button>
+                                    }
                                 }
                                 <div class="admin-notif-history-item__meta">
                                     @KyrgyzstanTime.FormatDateTime(n.CreatedAt)
@@ -142,6 +154,13 @@
     private bool _sending;
     private bool _loadingHistory = true;
     private List<NotificationDto> _history = [];
+    private readonly HashSet<Guid> _expandedHistoryIds = [];
+
+    private void ToggleHistoryExpand(Guid id)
+    {
+        if (!_expandedHistoryIds.Add(id))
+            _expandedHistoryIds.Remove(id);
+    }
 
     protected override async Task OnInitializedAsync()
     {

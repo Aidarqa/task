@@ -5718,10 +5718,34 @@ body.light-theme .mud-nav-link.active {
 
 .notification-card-modern__text {
   color: var(--mud-palette-text-secondary);
-  line-height: 1.45;
-  margin-bottom: 10px;
+  line-height: 1.5;
+  margin-bottom: 6px;
   word-break: break-word;
+  white-space: pre-wrap;    /* renders \n as line breaks */
 }
+
+.notification-card-modern__text--collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.notification-read-more {
+  font-size: .78rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: 8px;
+  font-family: inherit;
+  opacity: .8;
+  transition: opacity .14s;
+}
+.notification-read-more:hover { opacity: 1; }
 
 .notification-card-modern__meta {
   display: flex;
@@ -6171,23 +6195,32 @@ body.light-theme .mud-nav-link.active {
 }
 
 /* ── Admin Notifications Page ── */
-.admin-notif-page { display:flex; flex-direction:column; gap:20px; }
+.admin-notif-page { display:flex; flex-direction:column; gap:20px; padding: 20px; }
 .admin-notif-hero { padding:20px 24px; border-radius:16px; }
 .admin-notif-title { font-weight:700; }
 .admin-notif-subtitle { opacity:.6; margin-top:4px; }
 
 .admin-notif-layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
 
+/* min-width:0 prevents grid children from overflowing when content is wide */
 .admin-notif-form-card,
-.admin-notif-history-card { padding:20px; border-radius:16px; border:1px solid var(--mud-palette-divider); }
+.admin-notif-history-card {
+  padding:20px;
+  border-radius:16px;
+  border:1px solid var(--mud-palette-divider);
+  min-width: 0;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
 
 .admin-notif-form-header { display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid var(--mud-palette-divider); margin-bottom:4px; }
 
 .admin-notif-preview-label { opacity:.5; text-transform:uppercase; letter-spacing:.06em; font-size:.68rem; font-weight:700; margin-bottom:6px; display:block; }
-.admin-notif-preview-card { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:10px; background:var(--mud-palette-background-grey); border-left:4px solid var(--mud-palette-primary); }
+.admin-notif-preview-card { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:10px; background:var(--mud-palette-background-grey); border-left:4px solid var(--mud-palette-primary); overflow:hidden; }
 .admin-notif-preview-icon { flex-shrink:0; opacity:.7; margin-top:2px; }
-.admin-notif-preview-title { font-weight:600; font-size:.875rem; }
-.admin-notif-preview-body { font-size:.82rem; opacity:.65; margin-top:3px; line-height:1.4; }
+.admin-notif-preview-title { font-weight:600; font-size:.875rem; word-break:break-word; }
+.admin-notif-preview-body { font-size:.82rem; opacity:.65; margin-top:3px; line-height:1.4; word-break:break-word; white-space:pre-wrap; }
 
 .admin-notif-history-loading,
 .admin-notif-history-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding:32px; text-align:center; opacity:.5; }
@@ -6196,7 +6229,23 @@ body.light-theme .mud-nav-link.active {
 .admin-notif-history-item__icon { flex-shrink:0; margin-top:2px; }
 .admin-notif-history-item__body { flex:1; min-width:0; }
 .admin-notif-history-item__title { font-weight:600; font-size:.875rem; }
-.admin-notif-history-item__text { font-size:.8rem; opacity:.6; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.admin-notif-history-item__text {
+  font-size:.8rem;
+  opacity:.7;
+  margin-top:2px;
+  white-space:pre-wrap;
+  word-break:break-word;
+  line-height:1.45;
+}
+
+.admin-notif-history-item__text--collapsed {
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  white-space:pre-wrap;
+}
 .admin-notif-history-item__meta { font-size:.72rem; opacity:.4; margin-top:4px; }
 
 @media (max-width:900px) { .admin-notif-layout { grid-template-columns:1fr; } }

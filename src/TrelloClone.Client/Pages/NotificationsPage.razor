@@ -109,9 +109,19 @@
 
                                 @if (notif.Body is not null)
                                 {
-                                    <MudText Typo="Typo.body2" Class="notification-card-modern__text">
+                                    var isLong = notif.Body.Length > 200 || notif.Body.Contains('\n');
+                                    var isExpanded = _expandedIds.Contains(notif.Id);
+                                    <div class="@("notification-card-modern__text" + (isLong && !isExpanded ? " notification-card-modern__text--collapsed" : ""))">
                                         @notif.Body
-                                    </MudText>
+                                    </div>
+                                    @if (isLong)
+                                    {
+                                        <button type="button" class="notification-read-more"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="@(() => ToggleExpand(notif.Id))">
+                                            @(isExpanded ? "▲ Свернуть" : "▼ Читать полностью")
+                                        </button>
+                                    }
                                 }
 
                                 <div class="notification-card-modern__meta">
@@ -171,6 +181,13 @@
     private NotificationType? _typeFilter;
     private int _notificationPage = 1;
     private const int NotificationPageSize = 8;
+    private readonly HashSet<Guid> _expandedIds = [];
+
+    private void ToggleExpand(Guid id)
+    {
+        if (!_expandedIds.Add(id))
+            _expandedIds.Remove(id);
+    }
 
     private (string Label, string Icon, NotificationType? Value)[] TypeFilters =>
     [
