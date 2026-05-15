@@ -56,6 +56,10 @@ public static class SchemaBootstrapper
             ALTER TABLE "Notifications"
                 ADD COLUMN IF NOT EXISTS "SenderUserId" text NULL;
 
+            -- Increase Body column from varchar(500) to varchar(4000) for system broadcasts
+            ALTER TABLE "Notifications"
+                ALTER COLUMN "Body" TYPE character varying(4000);
+
             -- ── WorkTask Assignees ────────────────────────────────
             CREATE TABLE IF NOT EXISTS "WorkTaskAssignees" (
                 "Id" uuid NOT NULL PRIMARY KEY,

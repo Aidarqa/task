@@ -203,7 +203,7 @@ public class Notification
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     [Required, MaxLength(200)] public string Title { get; set; } = string.Empty;
-    [MaxLength(500)] public string? Body { get; set; }
+    [MaxLength(4000)] public string? Body { get; set; }
     public NotificationType NotificationType { get; set; } = NotificationType.Info;
     public string UserId { get; set; } = string.Empty;
     public string? SenderUserId { get; set; }
