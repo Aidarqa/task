@@ -1043,6 +1043,11 @@ select:-webkit-autofill {
   background: color-mix(in srgb, #84cc16 14%, transparent);
 }
 
+.nav-help .mud-nav-link-icon {
+  color: #0ea5e9;
+  background: color-mix(in srgb, #0ea5e9 14%, transparent);
+}
+
 .nav-settings .mud-nav-link-icon {
   color: #64748b;
   background: color-mix(in srgb, #64748b 14%, transparent);
@@ -5280,6 +5285,301 @@ button.task-dlg-status-pill[disabled] {
 
   .settings-action-btn {
     width: 100%;
+  }
+}
+/* ══════════════════════════════════════════════════════════
+   Help Page
+   ══════════════════════════════════════════════════════════ */
+.help-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  min-height: 100%;
+  background: var(--mud-palette-background);
+  color: var(--mud-palette-text-primary);
+}
+
+.help-hero,
+.help-filter-panel,
+.help-quickstart,
+.help-empty-state {
+  background: var(--mud-palette-surface);
+  border: 1px solid var(--mud-palette-divider);
+}
+
+.help-hero {
+  padding: 24px 26px;
+  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mud-palette-primary) 14%, var(--mud-palette-surface)),
+    var(--mud-palette-surface)
+  );
+}
+
+.help-hero__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px);
+  gap: 18px;
+  align-items: center;
+}
+
+.help-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.help-title-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--mud-palette-primary);
+  background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+}
+
+.help-title-icon .mud-icon-root {
+  font-size: 1.7rem;
+}
+
+.help-page-title {
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--mud-palette-text-primary);
+}
+
+.help-page-subtitle {
+  color: var(--mud-palette-text-secondary);
+  margin-top: 6px;
+}
+
+.help-search-field {
+  width: 100%;
+}
+
+.help-filter-panel {
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.help-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.help-filter-chip {
+  border-radius: 999px !important;
+  text-transform: none !important;
+  font-weight: 700 !important;
+}
+
+.help-filter-chip--active {
+  box-shadow: var(--mud-elevation-2);
+}
+
+.help-quickstart {
+  padding: 18px;
+  border-radius: 18px;
+}
+
+.help-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.help-section-heading__icon,
+.help-panel-title__icon,
+.help-topic-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.help-section-heading__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: var(--mud-palette-primary);
+  background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+}
+
+.help-section-heading__icon--quick {
+  color: #22c55e;
+  background: color-mix(in srgb, #22c55e 14%, transparent);
+}
+
+.help-muted {
+  color: var(--mud-palette-text-secondary);
+}
+
+.help-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.help-quick-item,
+.help-topic-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--mud-palette-divider);
+  background: color-mix(in srgb, var(--mud-palette-text-primary) 4%, transparent);
+}
+
+.help-quick-item__icon {
+  color: #22c55e;
+  margin-top: 2px;
+}
+
+.help-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-accordion .mud-expand-panel {
+  overflow: hidden;
+  border-radius: 18px !important;
+  border: 1px solid var(--mud-palette-divider);
+  background: var(--mud-palette-surface);
+}
+
+.help-accordion .mud-expand-panel-header {
+  padding: 14px 18px;
+}
+
+.help-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.help-panel-title__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: var(--help-accent);
+  background: var(--help-accent-soft);
+}
+
+.help-panel-title__text {
+  min-width: 0;
+}
+
+.help-panel-title__main {
+  font-weight: 800;
+  color: var(--mud-palette-text-primary);
+}
+
+.help-panel-title__summary {
+  display: block;
+  color: var(--mud-palette-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-panel-body {
+  padding: 0 18px 18px;
+}
+
+.help-section-description {
+  color: var(--mud-palette-text-secondary);
+  margin-bottom: 12px;
+}
+
+.help-topic-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.help-topic-row__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  color: var(--help-accent);
+  background: var(--help-accent-soft);
+}
+
+.help-topic-row__content {
+  min-width: 0;
+}
+
+.help-topic-title {
+  color: var(--mud-palette-text-primary);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.help-topic-body {
+  color: var(--mud-palette-text-secondary);
+  margin-top: 5px;
+  line-height: 1.45;
+}
+
+.help-empty-state {
+  min-height: 260px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+}
+
+.help-empty-icon {
+  color: var(--mud-palette-text-secondary);
+}
+
+@media (max-width: 1000px) {
+  .help-hero__content,
+  .help-quick-grid,
+  .help-topic-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .help-page {
+    padding: 12px;
+  }
+
+  .help-hero,
+  .help-quickstart,
+  .help-filter-panel {
+    border-radius: 16px;
+  }
+
+  .help-title-row,
+  .help-section-heading,
+  .help-panel-title {
+    align-items: flex-start;
+  }
+
+  .help-filter-row .mud-button-root {
+    flex: 1 1 100%;
+  }
+
+  .help-panel-title__summary {
+    white-space: normal;
   }
 }
 /* ══════════════════════════════════════════════════════════

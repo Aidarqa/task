@@ -1,0 +1,367 @@
+@page "/help"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>@L["help_title"] - @L["app_name"]</PageTitle>
+
+<div class="help-page">
+    <MudPaper Class="help-hero" Elevation="0">
+        <div class="help-hero__content">
+            <div class="help-hero__title-block">
+                <div class="help-title-row">
+                    <div class="help-title-icon">
+                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" />
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.h4" Class="help-page-title">@L["help_title"]</MudText>
+                        <MudText Typo="Typo.body2" Class="help-page-subtitle">
+                            @L["help_subtitle"]
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+
+            <MudTextField @bind-Value="_search"
+                          Placeholder="@L["help_search_placeholder"]"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          Clearable="true"
+                          Class="help-search-field" />
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="help-filter-panel" Elevation="0">
+        <div class="help-filter-row">
+            <MudButton Size="Size.Small"
+                       Variant="@(IsActive(AllSectionsKey) ? Variant.Filled : Variant.Outlined)"
+                       Color="@(IsActive(AllSectionsKey) ? Color.Primary : Color.Default)"
+                       StartIcon="@Icons.Material.Filled.AllInclusive"
+                       OnClick="@(() => SetActiveSection(AllSectionsKey))"
+                       Class="@GetFilterButtonClass(AllSectionsKey)">
+                @L["help_filter_all"]
+            </MudButton>
+
+            <MudButton Size="Size.Small"
+                       Variant="@(IsActive(QuickStartKey) ? Variant.Filled : Variant.Outlined)"
+                       Color="@(IsActive(QuickStartKey) ? Color.Primary : Color.Default)"
+                       StartIcon="@Icons.Material.Filled.RocketLaunch"
+                       OnClick="@(() => SetActiveSection(QuickStartKey))"
+                       Class="@GetFilterButtonClass(QuickStartKey)">
+                @L["help_quick_start"]
+            </MudButton>
+
+            @foreach (var section in VisibleSections)
+            {
+                <MudButton Size="Size.Small"
+                           Variant="@(IsActive(section.Id) ? Variant.Filled : Variant.Outlined)"
+                           Color="@(IsActive(section.Id) ? Color.Primary : Color.Default)"
+                           StartIcon="@section.Icon"
+                           OnClick="@(() => SetActiveSection(section.Id))"
+                           Class="@GetFilterButtonClass(section.Id)">
+                    @L[section.TitleKey]
+                </MudButton>
+            }
+        </div>
+    </MudPaper>
+
+    @if (ShowQuickStart)
+    {
+        <MudPaper Class="help-quickstart" Elevation="0">
+            <div class="help-section-heading">
+                <div class="help-section-heading__icon help-section-heading__icon--quick">
+                    <MudIcon Icon="@Icons.Material.Filled.RocketLaunch" />
+                </div>
+                <div>
+                    <MudText Typo="Typo.h6">@L["help_quick_start"]</MudText>
+                    <MudText Typo="Typo.body2" Class="help-muted">@L["help_quick_desc"]</MudText>
+                </div>
+            </div>
+
+            <div class="help-quick-grid">
+                @foreach (var item in QuickStartMatches)
+                {
+                    <div class="help-quick-item">
+                        <MudIcon Icon="@item.Icon" Class="help-quick-item__icon" />
+                        <div>
+                            <div class="help-topic-title">@L[item.TitleKey]</div>
+                            <div class="help-topic-body">@L[item.BodyKey]</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+    }
+
+    @if (!ShowQuickStart && !FilteredSections.Any())
+    {
+        <MudPaper Class="help-empty-state" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Class="help-empty-icon" />
+            <MudText Typo="Typo.h6">@L["help_no_results"]</MudText>
+            <MudText Typo="Typo.body2" Class="help-muted">@L["help_no_results_hint"]</MudText>
+        </MudPaper>
+    }
+    else if (FilteredSections.Any())
+    {
+        <MudExpansionPanels MultiExpansion="true"
+                            Elevation="0"
+                            Outlined="false"
+                            Gutters="true"
+                            Class="help-accordion">
+            @foreach (var section in FilteredSections)
+            {
+                <MudExpansionPanel Class="help-panel"
+                                   HeaderClass="help-panel__header"
+                                   Expanded="@ShouldExpand(section)">
+                    <TitleContent>
+                        <div class="help-panel-title">
+                            <div class="help-panel-title__icon" style="@GetAccentStyle(section.Accent)">
+                                <MudIcon Icon="@section.Icon" />
+                            </div>
+                            <div class="help-panel-title__text">
+                                <MudText Typo="Typo.subtitle1" Class="help-panel-title__main">
+                                    @L[section.TitleKey]
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="help-panel-title__summary">
+                                    @L[section.DescriptionKey]
+                                </MudText>
+                            </div>
+                        </div>
+                    </TitleContent>
+                    <ChildContent>
+                        <div class="help-panel-body">
+                            <MudText Typo="Typo.body2" Class="help-section-description">
+                                @L[section.DescriptionKey]
+                            </MudText>
+
+                            <div class="help-topic-list">
+                                @foreach (var topic in TopicsFor(section))
+                                {
+                                    <div class="help-topic-row">
+                                        <div class="help-topic-row__icon" style="@GetAccentStyle(section.Accent)">
+                                            <MudIcon Icon="@topic.Icon" Size="Size.Small" />
+                                        </div>
+                                        <div class="help-topic-row__content">
+                                            <div class="help-topic-title">@L[topic.TitleKey]</div>
+                                            <div class="help-topic-body">@L[topic.BodyKey]</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </ChildContent>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    }
+</div>
+
+@code {
+    private const string AllSectionsKey = "all";
+    private const string QuickStartKey = "quick";
+
+    private string _search = "";
+    private string _activeSection = AllSectionsKey;
+    private bool _isAdmin;
+
+    private readonly IReadOnlyList<HelpTopic> _quickStartItems =
+    [
+        new("help_quick_login_title", "help_quick_login_body", Icons.Material.Filled.Login),
+        new("help_quick_task_title", "help_quick_task_body", Icons.Material.Filled.AddTask),
+        new("help_quick_invite_title", "help_quick_invite_body", Icons.Material.Filled.GroupAdd)
+    ];
+
+    private readonly IReadOnlyList<HelpSection> _sections =
+    [
+        new(
+            "tasks",
+            "tasks_title",
+            "help_tasks_desc",
+            Icons.Material.Filled.Assignment,
+            "#f59e0b",
+            [
+                new("help_tasks_create_title", "help_tasks_create_body", Icons.Material.Filled.AddTask),
+                new("help_tasks_assignees_title", "help_tasks_assignees_body", Icons.Material.Filled.AccountTree),
+                new("help_tasks_checklist_title", "help_tasks_checklist_body", Icons.Material.Filled.Checklist),
+                new("help_tasks_statuses_title", "help_tasks_statuses_body", Icons.Material.Filled.FilterAlt)
+            ]),
+        new(
+            "projects",
+            "proj_title",
+            "help_projects_desc",
+            Icons.Material.Filled.FolderOpen,
+            "#8b5cf6",
+            [
+                new("help_projects_create_title", "help_projects_create_body", Icons.Material.Filled.CreateNewFolder),
+                new("help_projects_members_title", "help_projects_members_body", Icons.Material.Filled.Groups),
+                new("help_projects_visibility_title", "help_projects_visibility_body", Icons.Material.Filled.Visibility),
+                new("help_projects_deadlines_title", "help_projects_deadlines_body", Icons.Material.Filled.EventAvailable)
+            ]),
+        new(
+            "chats",
+            "chat_title",
+            "help_chats_desc",
+            Icons.Material.Filled.Chat,
+            "#ec4899",
+            [
+                new("help_chats_direct_title", "help_chats_direct_body", Icons.Material.Filled.Person),
+                new("help_chats_group_title", "help_chats_group_body", Icons.Material.Filled.Group),
+                new("help_chats_files_title", "help_chats_files_body", Icons.Material.Filled.AttachFile),
+                new("help_chats_unread_title", "help_chats_unread_body", Icons.Material.Filled.MarkChatUnread)
+            ]),
+        new(
+            "calendar",
+            "cal_title",
+            "help_calendar_desc",
+            Icons.Material.Filled.CalendarMonth,
+            "#06b6d4",
+            [
+                new("help_calendar_events_title", "help_calendar_events_body", Icons.Material.Filled.Event),
+                new("help_calendar_types_title", "help_calendar_types_body", Icons.Material.Filled.Category),
+                new("help_calendar_participants_title", "help_calendar_participants_body", Icons.Material.Filled.PeopleAlt),
+                new("help_calendar_rooms_title", "help_calendar_rooms_body", Icons.Material.Filled.MeetingRoom)
+            ]),
+        new(
+            "bookings",
+            "book_title",
+            "help_bookings_desc",
+            Icons.Material.Filled.MeetingRoom,
+            "#14b8a6",
+            [
+                new("help_bookings_resources_title", "help_bookings_resources_body", Icons.Material.Filled.Inventory2),
+                new("help_bookings_create_title", "help_bookings_create_body", Icons.Material.Filled.EventAvailable),
+                new("help_bookings_conflicts_title", "help_bookings_conflicts_body", Icons.Material.Filled.ReportProblem),
+                new("help_bookings_cancel_title", "help_bookings_cancel_body", Icons.Material.Filled.Cancel)
+            ]),
+        new(
+            "visits",
+            "visit_title",
+            "help_visits_desc",
+            Icons.Material.Filled.Badge,
+            "#22c55e",
+            [
+                new("help_visits_request_title", "help_visits_request_body", Icons.Material.Filled.PersonAdd),
+                new("help_visits_approval_title", "help_visits_approval_body", Icons.Material.Filled.Verified),
+                new("help_visits_booking_title", "help_visits_booking_body", Icons.Material.Filled.MeetingRoom),
+                new("help_visits_status_title", "help_visits_status_body", Icons.Material.Filled.Rule)
+            ]),
+        new(
+            "notifications",
+            "notif_title",
+            "help_notifications_desc",
+            Icons.Material.Filled.Notifications,
+            "#f97316",
+            [
+                new("help_notifications_types_title", "help_notifications_types_body", Icons.Material.Filled.NotificationsActive),
+                new("help_notifications_read_title", "help_notifications_read_body", Icons.Material.Filled.DoneAll),
+                new("help_notifications_browser_title", "help_notifications_browser_body", Icons.Material.Filled.WebAsset),
+                new("help_notifications_links_title", "help_notifications_links_body", Icons.Material.Filled.OpenInNew)
+            ]),
+        new(
+            "employees",
+            "emp_title",
+            "help_employees_desc",
+            Icons.Material.Filled.People,
+            "#84cc16",
+            [
+                new("help_employees_profiles_title", "help_employees_profiles_body", Icons.Material.Filled.AccountCircle),
+                new("help_employees_status_title", "help_employees_status_body", Icons.Material.Filled.RadioButtonChecked),
+                new("help_employees_search_title", "help_employees_search_body", Icons.Material.Filled.Search),
+                new("help_employees_chat_title", "help_employees_chat_body", Icons.Material.Filled.Chat)
+            ]),
+        new(
+            "settings",
+            "nav_settings",
+            "help_settings_desc",
+            Icons.Material.Filled.Settings,
+            "#64748b",
+            [
+                new("help_settings_profile_title", "help_settings_profile_body", Icons.Material.Filled.ManageAccounts),
+                new("help_settings_password_title", "help_settings_password_body", Icons.Material.Filled.Password),
+                new("help_settings_language_title", "help_settings_language_body", Icons.Material.Filled.Language),
+                new("help_settings_theme_title", "help_settings_theme_body", Icons.Material.Filled.Palette)
+            ]),
+        new(
+            "admin",
+            "help_admin_title",
+            "help_admin_desc",
+            Icons.Material.Filled.AdminPanelSettings,
+            "#3b82f6",
+            [
+                new("help_admin_users_title", "help_admin_users_body", Icons.Material.Filled.ManageAccounts),
+                new("help_admin_roles_title", "help_admin_roles_body", Icons.Material.Filled.Security),
+                new("help_admin_permissions_title", "help_admin_permissions_body", Icons.Material.Filled.Policy),
+                new("help_admin_broadcasts_title", "help_admin_broadcasts_body", Icons.Material.Filled.Campaign)
+            ],
+            AdminOnly: true)
+    ];
+
+    private IEnumerable<HelpSection> VisibleSections => _sections.Where(section => !section.AdminOnly || _isAdmin);
+
+    private IEnumerable<HelpSection> FilteredSections => VisibleSections.Where(SectionMatches);
+
+    private IEnumerable<HelpTopic> QuickStartMatches => _quickStartItems.Where(TopicMatches);
+
+    private bool ShowQuickStart => (_activeSection == AllSectionsKey || _activeSection == QuickStartKey) && QuickStartMatches.Any();
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _isAdmin = authState.User.HasClaim("perm", Permissions.AdminAccess);
+    }
+
+    private void SetActiveSection(string id) => _activeSection = id;
+
+    private bool IsActive(string id) => _activeSection == id;
+
+    private string GetFilterButtonClass(string id) => IsActive(id)
+        ? "help-filter-chip help-filter-chip--active"
+        : "help-filter-chip";
+
+    private bool SectionMatches(HelpSection section)
+    {
+        if (_activeSection != AllSectionsKey && _activeSection != section.Id)
+            return false;
+
+        if (!HasSearch)
+            return true;
+
+        return SectionTextMatches(section) || section.Topics.Any(TopicMatches);
+    }
+
+    private bool SectionTextMatches(HelpSection section)
+        => TextMatches(section.TitleKey) || TextMatches(section.DescriptionKey);
+
+    private bool TopicMatches(HelpTopic topic)
+        => !HasSearch || TextMatches(topic.TitleKey) || TextMatches(topic.BodyKey);
+
+    private IEnumerable<HelpTopic> TopicsFor(HelpSection section)
+        => !HasSearch || SectionTextMatches(section)
+            ? section.Topics
+            : section.Topics.Where(TopicMatches);
+
+    private bool TextMatches(string key)
+        => L[key].Contains(_search.Trim(), StringComparison.CurrentCultureIgnoreCase);
+
+    private bool ShouldExpand(HelpSection section)
+        => HasSearch || _activeSection == section.Id;
+
+    private static string GetAccentStyle(string accent)
+        => $"--help-accent:{accent}; --help-accent-soft:color-mix(in srgb, {accent} 14%, transparent);";
+
+    private sealed record HelpTopic(string TitleKey, string BodyKey, string Icon);
+
+    private sealed record HelpSection(
+        string Id,
+        string TitleKey,
+        string DescriptionKey,
+        string Icon,
+        string Accent,
+        IReadOnlyList<HelpTopic> Topics,
+        bool AdminOnly = false);
+}
