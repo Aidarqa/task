@@ -177,7 +177,7 @@
                                                 }
                                             </div>
 
-                                            @if (!string.IsNullOrWhiteSpace(booking.Title))
+                                            @if (!string.IsNullOrWhiteSpace(booking.Title) && IsRelatedToCurrentUser(booking))
                                             {
                                                 <MudText Typo="Typo.body1" Class="booking-title">
                                                     @booking.Title
