@@ -153,7 +153,7 @@ public class DeadlineReminderService(
                     project.OwnerId,
                     "Срок проекта",
                     $"По проекту \"{project.Name}\" завтра истекает срок.",
-                    NotificationType.System,
+                    NotificationType.Task,
                     "/projects",
                     project.Id.ToString());
             }
