@@ -220,6 +220,52 @@ public record DashboardStats(
     List<CalendarEventDto> TodayEvents
 );
 
+// ── Visit DTOs ────────────────────────────────────────────
+public record VisitGuestDto(
+    Guid Id,
+    string FullName,
+    string? Organization,
+    string? Phone,
+    DocumentType DocumentType,
+    string? DocumentNumber);
+
+public record VisitDto(
+    Guid Id,
+    string Number,
+    VisitStatus Status,
+    string Purpose,
+    DateTime PlannedArrival,
+    DateTime PlannedDeparture,
+    string HostUserId,
+    string HostUserName,
+    string? ApproverId,
+    string? ApproverName,
+    string? ApproverComment,
+    DateTime? ApprovedAt,
+    Guid? ResourceId,
+    string? ResourceName,
+    DateTime CreatedAt,
+    List<VisitGuestDto> Guests,
+    Guid? LinkedBookingId = null);
+
+public record CreateVisitGuestRequest(
+    [Required, MaxLength(200)] string FullName,
+    [MaxLength(200)] string? Organization = null,
+    [MaxLength(50)]  string? Phone = null,
+    DocumentType DocumentType = DocumentType.Passport,
+    [MaxLength(100)] string? DocumentNumber = null);
+
+public record CreateVisitRequest(
+    [Required, MaxLength(500)] string Purpose,
+    DateTime PlannedArrival,
+    DateTime PlannedDeparture,
+    string? ApproverId = null,
+    Guid? ResourceId = null,
+    List<CreateVisitGuestRequest>? Guests = null);
+
+public record ApproveVisitRequest([MaxLength(1000)] string? Comment = null);
+public record RejectVisitRequest([Required, MaxLength(1000)] string Comment);
+
 // ── SignalR Events ────────────────────────────────────────
 public record NewMessageEvent(Guid ChatId, ChatMessageDto Message);
 public record ChatReadEvent(Guid ChatId, string UserId, DateTime ReadAt);

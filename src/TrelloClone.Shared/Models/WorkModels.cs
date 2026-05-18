@@ -250,3 +250,39 @@ public enum ChatType         { Direct, Group, TaskChat }
 public enum NotificationType { Info, Task, Event, Booking, Chat, System }
 public enum ProjectStatus    { Active, Paused, Completed, Archived }
 public enum ProjectVisibility { AllUsers, SelectedUsers }
+
+// ── Visits ────────────────────────────────────────────────
+public enum VisitStatus  { Pending, Approved, Rejected, Cancelled }
+public enum DocumentType { Passport, DriverLicense, Other }
+
+public class Visit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    [MaxLength(20)]  public string Number { get; set; } = string.Empty; // ВИЗ-2025-0001
+    public VisitStatus Status { get; set; } = VisitStatus.Pending;
+    [Required, MaxLength(500)] public string Purpose { get; set; } = string.Empty;
+    public DateTime PlannedArrival { get; set; }
+    public DateTime PlannedDeparture { get; set; }
+    public string HostUserId { get; set; } = string.Empty;
+    public string HostUserName { get; set; } = string.Empty;
+    public string? ApproverId { get; set; }
+    public string? ApproverName { get; set; }
+    [MaxLength(1000)] public string? ApproverComment { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public Guid? ResourceId { get; set; }
+    [MaxLength(200)] public string? ResourceName { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public Guid? LinkedBookingId { get; set; }   // booking created on approval
+    public List<VisitGuest> Guests { get; set; } = [];
+}
+
+public class VisitGuest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid VisitId { get; set; }
+    [Required, MaxLength(200)] public string FullName { get; set; } = string.Empty;
+    [MaxLength(200)] public string? Organization { get; set; }
+    [MaxLength(50)]  public string? Phone { get; set; }
+    public DocumentType DocumentType { get; set; } = DocumentType.Passport;
+    [MaxLength(100)] public string? DocumentNumber { get; set; }
+}

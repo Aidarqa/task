@@ -52,6 +52,10 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
+    // ── Visits ───────────────────────────────────────────
+    public DbSet<Visit>      Visits      => Set<Visit>();
+    public DbSet<VisitGuest> VisitGuests => Set<VisitGuest>();
+
     // ── RBAC ─────────────────────────────────────────────
     public DbSet<Role>           Roles           => Set<Role>();
     public DbSet<Permission>     Permissions     => Set<Permission>();
@@ -197,6 +201,16 @@ public class AppDbContext : DbContext
             e.HasKey(m => m.Id);
             e.HasIndex(m => new { m.ProjectId, m.UserId }).IsUnique();
         });
+
+        // ── Visits ───────────────────────────────────────
+        mb.Entity<Visit>(e =>
+        {
+            e.HasKey(v => v.Id);
+            e.Property(v => v.Number).HasMaxLength(20);
+            e.Property(v => v.Purpose).HasMaxLength(500);
+            e.HasMany(v => v.Guests).WithOne().HasForeignKey(g => g.VisitId).OnDelete(DeleteBehavior.Cascade);
+        });
+        mb.Entity<VisitGuest>(e => { e.HasKey(g => g.Id); });
 
         // ── RBAC ─────────────────────────────────────────
         mb.Entity<Role>(e =>

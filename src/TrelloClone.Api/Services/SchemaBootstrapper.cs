@@ -60,6 +60,40 @@ public static class SchemaBootstrapper
             ALTER TABLE "Notifications"
                 ALTER COLUMN "Body" TYPE character varying(4000);
 
+            -- ── Visits ───────────────────────────────────────────
+            CREATE TABLE IF NOT EXISTS "Visits" (
+                "Id"               uuid NOT NULL PRIMARY KEY,
+                "Number"           character varying(20) NOT NULL DEFAULT '',
+                "Status"           integer NOT NULL DEFAULT 0,
+                "Purpose"          character varying(500) NOT NULL DEFAULT '',
+                "PlannedArrival"   timestamp with time zone NOT NULL,
+                "PlannedDeparture" timestamp with time zone NOT NULL,
+                "HostUserId"       text NOT NULL DEFAULT '',
+                "HostUserName"     text NOT NULL DEFAULT '',
+                "ApproverId"       text NULL,
+                "ApproverName"     text NULL,
+                "ApproverComment"  character varying(1000) NULL,
+                "ApprovedAt"       timestamp with time zone NULL,
+                "ResourceId"       uuid NULL,
+                "ResourceName"     character varying(200) NULL,
+                "CreatedAt"        timestamp with time zone NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "IX_Visits_HostUserId"  ON "Visits" ("HostUserId");
+            CREATE INDEX IF NOT EXISTS "IX_Visits_ApproverId"  ON "Visits" ("ApproverId");
+
+            CREATE TABLE IF NOT EXISTS "VisitGuests" (
+                "Id"             uuid NOT NULL PRIMARY KEY,
+                "VisitId"        uuid NOT NULL,
+                "FullName"       character varying(200) NOT NULL DEFAULT '',
+                "Organization"   character varying(200) NULL,
+                "Phone"          character varying(50) NULL,
+                "DocumentType"   integer NOT NULL DEFAULT 0,
+                "DocumentNumber" character varying(100) NULL,
+                CONSTRAINT "FK_VisitGuests_Visits_VisitId" FOREIGN KEY ("VisitId") REFERENCES "Visits" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_VisitGuests_VisitId" ON "VisitGuests" ("VisitId");
+            ALTER TABLE "Visits" ADD COLUMN IF NOT EXISTS "LinkedBookingId" uuid NULL;
+
             -- ── WorkTask Assignees ────────────────────────────────
             CREATE TABLE IF NOT EXISTS "WorkTaskAssignees" (
                 "Id" uuid NOT NULL PRIMARY KEY,

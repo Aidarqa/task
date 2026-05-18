@@ -206,7 +206,7 @@
                        Clearable="true"
                        ToStringFunc="FormatResourceSelectValue"
                        Class="mt-3">
-                @foreach (var resource in _resources.Where(r => r.ResourceType == ResourceType.Room).OrderBy(r => r.Name))
+                @foreach (var resource in _resources.OrderBy(r => r.Name))
                 {
                     <MudSelectItem T="Guid?" Value="@((Guid?)resource.Id)">
                         @FormatResourceName(resource)
@@ -499,20 +499,7 @@
 
     private void OpenCreate()
     {
-        _editingEventId = null;
-        _selectedEvent = null;
-        _detailOpen = false;
-        _newTitle = "";
-        _newDesc = null;
-        _newType = CalendarEventType.Meeting;
-        _newStart = KyrgyzstanTime.Today;
-        _newEnd = KyrgyzstanTime.Today;
-        _newStartTime = GetDefaultStartTime(KyrgyzstanTime.Today);
-        _newEndTime = GetDefaultEndTime(KyrgyzstanTime.Today, _newStartTime.Value);
-        _newAllDay = false;
-        _newParticipantIds = [];
-        _newResourceId = null;
-        _createOpen = true;
+        _ = OpenCreateAsync(KyrgyzstanTime.Today, null);
     }
 
     private void OpenCreateForDate(DateTime date)
@@ -522,21 +509,32 @@
             Snackbar.Add(L["cal_past_date"], Severity.Warning);
             return;
         }
+        _ = OpenCreateAsync(date, null);
+    }
 
-        _editingEventId = null;
+    private async Task OpenCreateAsync(DateTime date, CalendarEventDto? editEvent)
+    {
+        // Always refresh resources so newly added rooms appear immediately
+        try { _resources = await BookingSvc.GetResourcesAsync(); } catch { }
+
+        _editingEventId = editEvent?.Id;
         _selectedEvent = null;
         _detailOpen = false;
         _dayOverflowOpen = false;
-        _newTitle = "";
-        _newDesc = null;
-        _newType = CalendarEventType.Meeting;
-        _newStart = date;
-        _newEnd = date;
-        _newStartTime = GetDefaultStartTime(date);
-        _newEndTime = GetDefaultEndTime(date, _newStartTime.Value);
-        _newAllDay = false;
-        _newParticipantIds = [];
-        _newResourceId = null;
+        _newTitle = editEvent?.Title ?? "";
+        _newDesc = editEvent?.Description;
+        _newType = editEvent?.EventType ?? CalendarEventType.Meeting;
+        _newStart = editEvent is not null ? editEvent.StartTime.Date : date;
+        _newEnd = editEvent is not null ? editEvent.EndTime.Date : date;
+        _newStartTime = editEvent is not null
+            ? editEvent.StartTime.TimeOfDay
+            : GetDefaultStartTime(date);
+        _newEndTime = editEvent is not null
+            ? editEvent.EndTime.TimeOfDay
+            : GetDefaultEndTime(date, _newStartTime!.Value);
+        _newAllDay = editEvent?.IsAllDay ?? false;
+        _newParticipantIds = editEvent?.Participants.Select(p => p.UserId).ToArray() ?? [];
+        _newResourceId = editEvent?.ResourceId;
         _createOpen = true;
     }
 
@@ -581,22 +579,8 @@
 
     private void EditEvent()
     {
-        if (_selectedEvent is null)
-            return;
-
-        _editingEventId = _selectedEvent.Id;
-        _newTitle = _selectedEvent.Title;
-        _newDesc = _selectedEvent.Description;
-        _newType = _selectedEvent.EventType;
-        _newStart = _selectedEvent.StartTime.Date;
-        _newEnd = _selectedEvent.EndTime.Date;
-        _newAllDay = _selectedEvent.IsAllDay;
-        _newStartTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(9) : _selectedEvent.StartTime.TimeOfDay;
-        _newEndTime = _selectedEvent.IsAllDay ? TimeSpan.FromHours(10) : _selectedEvent.EndTime.TimeOfDay;
-        _newParticipantIds = _selectedEvent.Participants.Select(p => p.UserId).ToArray();
-        _newResourceId = _selectedEvent.ResourceId;
-        _detailOpen = false;
-        _createOpen = true;
+        if (_selectedEvent is null) return;
+        _ = OpenCreateAsync(_selectedEvent.StartTime.Date, _selectedEvent);
     }
 
     private async Task SaveEventAsync()

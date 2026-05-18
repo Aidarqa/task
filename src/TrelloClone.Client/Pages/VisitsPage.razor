@@ -1,0 +1,698 @@
+@page "/visits"
+@page "/visits/{VisitId:guid}"
+@attribute [Authorize]
+@inherits LocalizedBase
+@inject VisitService VisitSvc
+@inject EmployeeService EmployeeSvc
+@inject BookingService BookingSvc
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>@L["visit_title"] - @L["app_name"]</PageTitle>
+
+<div class="visits-page">
+
+    <MudPaper Class="visits-toolbar" Elevation="0">
+        <div class="visits-toolbar__left">
+            <div>
+                <MudText Typo="Typo.h4" Class="visits-page-title">@L["visit_title"]</MudText>
+                <MudText Typo="Typo.body2" Class="visits-page-subtitle">@L["visit_subtitle"]</MudText>
+            </div>
+        </div>
+        <div class="visits-toolbar__right">
+            <MudToggleGroup T="string" @bind-Value="_tab" Size="Size.Small" Class="visits-toggle">
+                <MudToggleItem Value="@("my")">
+                    @L["visit_my"]
+                    @if (MyVisits.Count > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Class="ml-1" Color="Color.Tertiary">@MyVisits.Count</MudChip>
+                    }
+                </MudToggleItem>
+                <MudToggleItem Value="@("approve")">
+                    @L["visit_to_approve"]
+                    @{ var pendingCount = ToApproveVisits.Count(v => v.Status == VisitStatus.Pending); }
+                    @if (pendingCount > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-1">@pendingCount</MudChip>
+                    }
+                </MudToggleItem>
+            </MudToggleGroup>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Size="Size.Medium"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog"
+                       Class="visits-toolbar-btn">
+                @L["visit_new"]
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudPaper Class="visits-loading" Elevation="0">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-3">@L["visit_loading"]</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        var displayList = _tab == "my" ? MyVisits : ToApproveVisits;
+
+        @if (displayList.Count == 0)
+        {
+            <MudPaper Class="visits-empty-state" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Large" Class="visits-empty-icon" />
+                <MudText Typo="Typo.h6">
+                    @(_tab == "my" ? L["visit_empty_my"] : L["visit_empty_approve"])
+                </MudText>
+                <MudText Typo="Typo.body2" Class="visits-empty-subtitle">
+                    @(_tab == "my" ? L["visit_hint_my"] : L["visit_hint_approve"])
+                </MudText>
+                @if (_tab == "my")
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               OnClick="OpenCreateDialog" Class="mt-2">
+                        @L["visit_create_first"]
+                    </MudButton>
+                }
+            </MudPaper>
+        }
+        else
+        {
+            <div class="visits-list-shell">
+                <div class="visits-list-scroll">
+                    <div class="visits-list">
+                        @foreach (var v in PagedVisits(displayList))
+                        {
+                            <MudPaper Class="visit-card" Elevation="0" @onclick="@(() => OpenDetail(v))">
+                                <div class="visit-card__content">
+
+                                    <div class="visit-card__left">
+                                        <div class="visit-icon-wrap" style="background:@(GetStatusColor(v.Status))22">
+                                            <MudIcon Icon="@Icons.Material.Outlined.Badge"
+                                                     Style="@($"color:{GetStatusColor(v.Status)}")"
+                                                     Class="visit-icon" />
+                                        </div>
+                                    </div>
+
+                                    <div class="visit-main-info">
+                                        <div class="visit-top-line">
+                                            <MudText Typo="Typo.subtitle1" Class="visit-number">@v.Number</MudText>
+                                            <MudChip T="string" Size="Size.Small"
+                                                     Style="@($"background:{GetStatusColor(v.Status)}22;color:{GetStatusColor(v.Status)};font-weight:700")">
+                                                @GetStatusLabel(v.Status)
+                                            </MudChip>
+                                            @if (_tab == "approve" && v.Status == VisitStatus.Pending)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
+                                                    @L["visit_awaiting"]
+                                                </MudChip>
+                                            }
+                                        </div>
+
+                                        <MudText Typo="Typo.body1" Class="visit-purpose">@v.Purpose</MudText>
+
+                                        <div class="visit-meta-list">
+                                            <div class="visit-meta-item">
+                                                <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" />
+                                                <span>@KyrgyzstanTime.FormatDateTime(v.PlannedArrival) — @v.PlannedDeparture.ToString("HH:mm")</span>
+                                            </div>
+                                            <div class="visit-meta-item">
+                                                <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" />
+                                                <span>@v.Guests.Count @GuestsLabel(v.Guests.Count)</span>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(v.ResourceName))
+                                            {
+                                                <div class="visit-meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.MeetingRoom" Size="Size.Small" />
+                                                    <span>@v.ResourceName</span>
+                                                </div>
+                                            }
+                                            @if (_tab == "my" && !string.IsNullOrWhiteSpace(v.ApproverName))
+                                            {
+                                                <div class="visit-meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Outlined.HowToReg" Size="Size.Small" />
+                                                    <span>@L["visit_approver"]: @v.ApproverName</span>
+                                                </div>
+                                            }
+                                            @if (_tab == "approve")
+                                            {
+                                                <div class="visit-meta-item">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" />
+                                                    <span>@L["visit_author"]: @v.HostUserName</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="visit-card__right">
+                                        @if (v.HostUserId == _currentUserId && v.Status == VisitStatus.Pending)
+                                        {
+                                            <div @onclick:stopPropagation="true">
+                                                <MudTooltip Text="@L["visit_cancel"]">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                                                   Color="Color.Error"
+                                                                   OnClick="@(() => CancelVisitFromList(v))" />
+                                                </MudTooltip>
+                                            </div>
+                                        }
+                                    </div>
+
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                </div>
+
+                @if (displayList.Count > PageSize)
+                {
+                    <div class="visits-pagination-bar">
+                        <MudText Typo="Typo.caption">
+                            @string.Format(L["visit_pagination"], ((_currentPage - 1) * PageSize) + 1, Math.Min(_currentPage * PageSize, displayList.Count), displayList.Count)
+                        </MudText>
+                        <MudPagination Count="@((int)Math.Ceiling(displayList.Count / (double)PageSize))"
+                                       Selected="@_currentPage"
+                                       SelectedChanged="@(p => _currentPage = p)"
+                                       Size="Size.Small"
+                                       Variant="Variant.Outlined"
+                                       BoundaryCount="1"
+                                       MiddleCount="1" />
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@* ── Create Dialog ── *@
+<MudDialog @bind-Visible="_createOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
+    <TitleContent><MudText Typo="Typo.h6">@(_editingVisitId.HasValue ? L["visit_edit_title"] : L["visit_new"])</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_form.Purpose" Label="@L["visit_purpose"]"
+                          Variant="Variant.Outlined" Lines="2" Required="true" />
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Style="opacity:.6;margin-bottom:4px;display:block">@L["visit_arrival"]</MudText>
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                        <MudDatePicker Date="_arrivalDate"
+                                       DateChanged="@(async d => { _arrivalDate = d; await CheckRoomConflictAsync(); })"
+                                       Label="Дата" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" Style="flex:1" />
+                        <TimeInput Time="_arrivalTime"
+                                   TimeChanged="@(async t => { _arrivalTime = t; await CheckRoomConflictAsync(); })"
+                                   Label="Время" Margin="Margin.Dense" />
+                    </MudStack>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Style="opacity:.6;margin-bottom:4px;display:block">@L["visit_departure"]</MudText>
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                        <MudDatePicker Date="_departureDate"
+                                       DateChanged="@(async d => { _departureDate = d; await CheckRoomConflictAsync(); })"
+                                       Label="Дата" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" Style="flex:1" />
+                        <TimeInput Time="_departureTime"
+                                   TimeChanged="@(async t => { _departureTime = t; await CheckRoomConflictAsync(); })"
+                                   Label="Время" Margin="Margin.Dense" />
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+            <MudSelect T="string" @bind-Value="_form.ApproverId" Label="@L["visit_approver"]"
+                       Variant="Variant.Outlined" Clearable="true"
+                       ToStringFunc="@(id => _employees.FirstOrDefault(u => u.Id == id)?.UserName ?? id)">
+                @foreach (var u in _employees)
+                { <MudSelectItem Value="@u.Id">@u.UserName</MudSelectItem> }
+            </MudSelect>
+            <MudSelect T="Guid?"
+                       Value="_form.ResourceId"
+                       ValueChanged="@(async id => { _form.ResourceId = id; await CheckRoomConflictAsync(); })"
+                       Label="@L["visit_room"]"
+                       Variant="Variant.Outlined" Clearable="true">
+                @foreach (var r in _resources.Where(r => r.IsActive))
+                { <MudSelectItem Value="@((Guid?)r.Id)">@r.Name @(r.Location != null ? $"({r.Location})" : "")</MudSelectItem> }
+            </MudSelect>
+
+            @if (_roomConflict)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-1">
+                    <MudIcon Icon="@Icons.Material.Filled.EventBusy" Size="Size.Small" Class="mr-1" />
+                    @L["visit_room_conflict"]
+                </MudAlert>
+            }
+            <MudDivider />
+            <div class="visits-guests-header">
+                <MudText Typo="Typo.subtitle2">@L["visit_guests"]</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="AddGuest">
+                    @L["visit_add_guest"]
+                </MudButton>
+            </div>
+            @for (var i = 0; i < _guests.Count; i++)
+            {
+                var idx = i;
+                var g = _guests[idx];
+                <MudPaper Elevation="0" Outlined="true" Class="visit-guest-row">
+                    <div class="visit-guest-row__title">
+                        <MudText Typo="Typo.caption" Style="opacity:.6">@L["visit_guest_n"] @(idx + 1)</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                       Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => RemoveGuest(idx))" />
+                    </div>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="g.FullName" Label="@L["visit_fullname"]"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="g.Organization" Label="@L["visit_org"]"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="g.Phone" Label="@L["visit_phone"]"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="DocumentType" @bind-Value="g.DocumentType"
+                                       Label="@L["visit_doc_type"]" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelectItem Value="DocumentType.Passport">@L["visit_doc_passport"]</MudSelectItem>
+                                <MudSelectItem Value="DocumentType.DriverLicense">@L["visit_doc_driver"]</MudSelectItem>
+                                <MudSelectItem Value="DocumentType.Other">@L["visit_doc_other"]</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="g.DocumentNumber" Label="@L["visit_doc_number"]"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+            @if (_guests.Count == 0)
+            {
+                <MudPaper Elevation="0" Class="pa-4 d-flex flex-column align-center" Style="opacity:.5">
+                    <MudIcon Icon="@Icons.Material.Outlined.PersonAdd" Size="Size.Large" />
+                    <MudText Typo="Typo.body2" Class="mt-2">@L["visit_guest_hint"]</MudText>
+                </MudPaper>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _createOpen = false)">@L["btn_cancel"]</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_saving || string.IsNullOrWhiteSpace(_form.Purpose) || _guests.Count == 0)"
+                   OnClick="SaveVisitAsync">
+            @if (_saving) { <MudProgressCircular Size="Size.Small" Color="Color.Inherit" Indeterminate="true" Class="mr-2" /> }
+            @(_editingVisitId.HasValue ? L["btn_save"] : L["btn_create"])
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Detail Dialog ── *@
+<MudDialog @bind-Visible="_detailOpen"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        @if (_selected is not null)
+        {
+            <div class="visit-detail-title">
+                <MudText Typo="Typo.h6">@_selected.Number</MudText>
+                <MudChip T="string" Size="Size.Small"
+                         Style="@($"background:{GetStatusColor(_selected.Status)}22;color:{GetStatusColor(_selected.Status)};font-weight:700")">
+                    @GetStatusLabel(_selected.Status)
+                </MudChip>
+            </div>
+        }
+    </TitleContent>
+    <DialogContent>
+        @if (_selected is not null)
+        {
+            <MudStack Spacing="3">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                    <MudStack Spacing="2">
+                        <div class="visit-detail-row">
+                            <MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Small" Class="visit-detail-icon" />
+                            <div><div class="visit-detail-label">@L["visit_purpose"]</div><div class="visit-detail-value">@_selected.Purpose</div></div>
+                        </div>
+                        <div class="visit-detail-row">
+                            <MudIcon Icon="@Icons.Material.Outlined.Schedule" Size="Size.Small" Class="visit-detail-icon" />
+                            <div>
+                                <div class="visit-detail-label">@L["visit_datetime"]</div>
+                                <div class="visit-detail-value">
+                                    @KyrgyzstanTime.FormatDateTime(_selected.PlannedArrival) — @KyrgyzstanTime.FormatDateTime(_selected.PlannedDeparture)
+                                </div>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_selected.ResourceName))
+                        {
+                            <div class="visit-detail-row">
+                                <MudIcon Icon="@Icons.Material.Outlined.MeetingRoom" Size="Size.Small" Class="visit-detail-icon" />
+                                <div><div class="visit-detail-label">@L["visit_room"]</div><div class="visit-detail-value">@_selected.ResourceName</div></div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_selected.ApproverName))
+                        {
+                            <div class="visit-detail-row">
+                                <MudIcon Icon="@Icons.Material.Outlined.HowToReg" Size="Size.Small" Class="visit-detail-icon" />
+                                <div><div class="visit-detail-label">@L["visit_approver"]</div><div class="visit-detail-value">@_selected.ApproverName</div></div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_selected.ApproverComment))
+                        {
+                            <div class="visit-detail-row">
+                                <MudIcon Icon="@Icons.Material.Outlined.Comment" Size="Size.Small" Class="visit-detail-icon" />
+                                <div><div class="visit-detail-label">@L["visit_comment"]</div><div class="visit-detail-value">@_selected.ApproverComment</div></div>
+                            </div>
+                        }
+                    </MudStack>
+                </MudPaper>
+
+                <MudText Typo="Typo.subtitle2">@L["visit_guests"] (@_selected.Guests.Count)</MudText>
+                @foreach (var g in _selected.Guests)
+                {
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                        <MudText Typo="Typo.subtitle2">@g.FullName</MudText>
+                        @if (!string.IsNullOrWhiteSpace(g.Organization))
+                        { <MudText Typo="Typo.body2" Style="opacity:.7">@g.Organization</MudText> }
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">
+                            @if (!string.IsNullOrWhiteSpace(g.Phone))
+                            { <MudText Typo="Typo.caption" Style="opacity:.65">📞 @g.Phone</MudText> }
+                            @if (!string.IsNullOrWhiteSpace(g.DocumentNumber))
+                            { <MudText Typo="Typo.caption" Style="opacity:.65">🪪 @GetDocLabel(g.DocumentType): @g.DocumentNumber</MudText> }
+                        </div>
+                    </MudPaper>
+                }
+
+                @if (_selected.ApproverId == _currentUserId && _selected.Status == VisitStatus.Pending)
+                {
+                    <MudDivider />
+                    <MudText Typo="Typo.subtitle2">@L["visit_decision"]</MudText>
+                    <MudTextField @bind-Value="_approverComment"
+                                  Label="@L["visit_comment"]"
+                                  Variant="Variant.Outlined" Lines="2" />
+                    <MudGrid>
+                        <MudItem xs="6">
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       Disabled="_saving" OnClick="ApproveAsync">@L["visit_approve"]</MudButton>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.Cancel"
+                                       Disabled="@(_saving || string.IsNullOrWhiteSpace(_approverComment))"
+                                       OnClick="RejectAsync">@L["visit_reject"]</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                }
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_selected is not null && _selected.HostUserId == _currentUserId)
+        {
+            @if (_selected.Status == VisitStatus.Pending)
+            {
+                <MudButton StartIcon="@Icons.Material.Filled.Edit"
+                           Color="Color.Primary" OnClick="OpenEditDialog">
+                    @L["visit_edit"]
+                </MudButton>
+            }
+            <MudButton StartIcon="@Icons.Material.Filled.DeleteOutline"
+                       Color="Color.Error" OnClick="DeleteVisitAsync">
+                @L["visit_delete"]
+            </MudButton>
+        }
+        <MudButton OnClick="@(() => _detailOpen = false)">@L["btn_close"]</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid? VisitId { get; set; }
+
+    private List<VisitDto> _visits = [];
+    private bool _loading = true;
+    private string _currentUserId = "";
+    private string _tab = "my";
+    private int _currentPage = 1;
+    private const int PageSize = 8;
+
+    private List<VisitDto> MyVisits        => _visits.Where(v => v.HostUserId == _currentUserId).ToList();
+    private List<VisitDto> ToApproveVisits => _visits.Where(v => v.ApproverId == _currentUserId).ToList();
+    private IEnumerable<VisitDto> PagedVisits(List<VisitDto> list)
+        => list.Skip((_currentPage - 1) * PageSize).Take(PageSize);
+
+    private bool _createOpen;
+    private bool _saving;
+    private bool _roomConflict;
+    private Guid? _editingVisitId;   // null = create, non-null = edit
+    private CreateFormModel _form = new();
+    private DateTime? _arrivalDate   = KyrgyzstanTime.Today;
+    private TimeSpan? _arrivalTime   = TimeSpan.FromHours(9);
+    private DateTime? _departureDate = KyrgyzstanTime.Today;
+    private TimeSpan? _departureTime = TimeSpan.FromHours(11);
+    private List<GuestFormModel> _guests = [];
+    private List<UserDto> _employees = [];
+    private List<Resource> _resources = [];
+
+    private bool _detailOpen;
+    private VisitDto? _selected;
+    private string _approverComment = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        await Task.WhenAll(LoadVisitsAsync(), LoadSupportDataAsync());
+        if (VisitId.HasValue)
+        {
+            var v = _visits.FirstOrDefault(x => x.Id == VisitId.Value);
+            if (v is not null) OpenDetail(v);
+        }
+    }
+
+    private async Task LoadVisitsAsync()
+    {
+        _loading = true;
+        try { _visits = await VisitSvc.GetAllAsync(); }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadSupportDataAsync()
+    {
+        _employees = await EmployeeSvc.GetAllAsync(excludeAdmins: true);
+        try { _resources = await BookingSvc.GetResourcesAsync(); } catch { }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingVisitId = null;
+        _form = new(); _guests = [];
+        _arrivalDate = KyrgyzstanTime.Today; _arrivalTime = TimeSpan.FromHours(9);
+        _departureDate = KyrgyzstanTime.Today; _departureTime = TimeSpan.FromHours(11);
+        _roomConflict = false;
+        _createOpen = true;
+    }
+
+    private async Task OpenEditDialog()
+    {
+        if (_selected is null) return;
+        _editingVisitId = _selected.Id;
+        _form = new CreateFormModel
+        {
+            Purpose    = _selected.Purpose,
+            ApproverId = _selected.ApproverId,
+            ResourceId = _selected.ResourceId
+        };
+        _arrivalDate   = _selected.PlannedArrival.Date;
+        _arrivalTime   = _selected.PlannedArrival.TimeOfDay;
+        _departureDate = _selected.PlannedDeparture.Date;
+        _departureTime = _selected.PlannedDeparture.TimeOfDay;
+        _guests = _selected.Guests.Select(g => new GuestFormModel
+        {
+            FullName       = g.FullName,
+            Organization   = g.Organization,
+            Phone          = g.Phone,
+            DocumentType   = g.DocumentType,
+            DocumentNumber = g.DocumentNumber
+        }).ToList();
+        _roomConflict = false;
+        // Refresh resources for edit dialog
+        try { _resources = await BookingSvc.GetResourcesAsync(); } catch { }
+        _detailOpen = false;
+        _createOpen = true;
+    }
+
+    private async Task DeleteVisitAsync()
+    {
+        if (_selected is null) return;
+        var confirmed = await DialogService.ShowMessageBox(
+            L["visit_delete_title"],
+            string.Format(L["visit_delete_confirm"], _selected.Number),
+            yesText: L["btn_delete"], cancelText: L["btn_cancel"]);
+        if (confirmed != true) return;
+
+        await VisitSvc.DeleteAsync(_selected.Id);
+        _visits.RemoveAll(v => v.Id == _selected.Id);
+        _detailOpen = false;
+        Snackbar.Add(L["visit_deleted"], Severity.Info);
+    }
+
+    private void AddGuest() => _guests.Add(new());
+    private void RemoveGuest(int i) => _guests.RemoveAt(i);
+
+    private async Task CheckRoomConflictAsync()
+    {
+        if (_form.ResourceId is null) { _roomConflict = false; return; }
+        var arrival   = (_arrivalDate   ?? KyrgyzstanTime.Today) + (_arrivalTime   ?? TimeSpan.Zero);
+        var departure = (_departureDate ?? KyrgyzstanTime.Today) + (_departureTime ?? TimeSpan.Zero);
+        if (departure <= arrival) { _roomConflict = false; return; }
+        try
+        {
+            var available = await VisitSvc.CheckRoomAvailableAsync(_form.ResourceId.Value, arrival, departure);
+            _roomConflict = !available;
+        }
+        catch { _roomConflict = false; }
+    }
+
+    private async Task SaveVisitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Purpose) || _guests.Count == 0) return;
+        _saving = true;
+        try
+        {
+            var arrival   = (_arrivalDate   ?? KyrgyzstanTime.Today) + (_arrivalTime   ?? TimeSpan.Zero);
+            var departure = (_departureDate ?? KyrgyzstanTime.Today) + (_departureTime ?? TimeSpan.Zero);
+            var req = new CreateVisitRequest(_form.Purpose, arrival, departure,
+                string.IsNullOrWhiteSpace(_form.ApproverId) ? null : _form.ApproverId,
+                _form.ResourceId,
+                _guests.Where(g => !string.IsNullOrWhiteSpace(g.FullName))
+                       .Select(g => new CreateVisitGuestRequest(g.FullName, g.Organization, g.Phone, g.DocumentType, g.DocumentNumber))
+                       .ToList());
+
+            if (_editingVisitId.HasValue)
+            {
+                // Edit mode
+                var updated = await VisitSvc.UpdateAsync(_editingVisitId.Value, req);
+                if (updated is not null)
+                {
+                    UpdateInList(updated);
+                    _createOpen = false;
+                    _editingVisitId = null;
+                    Snackbar.Add(L["visit_updated"], Severity.Success);
+                }
+            }
+            else
+            {
+                // Create mode
+                var created = await VisitSvc.CreateAsync(req);
+                if (created is not null)
+                {
+                    _visits.Insert(0, created);
+                    _createOpen = false;
+                    Snackbar.Add(L["visit_created"], Severity.Success);
+                }
+            }
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private void OpenDetail(VisitDto v) { _selected = v; _approverComment = ""; _detailOpen = true; }
+
+    private async Task ApproveAsync()
+    {
+        if (_selected is null) return;
+        _saving = true;
+        try
+        {
+            var updated = await VisitSvc.ApproveAsync(_selected.Id, _approverComment);
+            if (updated is not null) UpdateInList(updated);
+            _detailOpen = false;
+            Snackbar.Add(L["visit_approved"], Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task RejectAsync()
+    {
+        if (_selected is null || string.IsNullOrWhiteSpace(_approverComment)) return;
+        _saving = true;
+        try
+        {
+            var updated = await VisitSvc.RejectAsync(_selected.Id, _approverComment);
+            if (updated is not null) UpdateInList(updated);
+            _detailOpen = false;
+            Snackbar.Add(L["visit_rejected"], Severity.Info);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task CancelVisitFromList(VisitDto v)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            L["visit_delete_title"],
+            string.Format(L["visit_delete_confirm"], v.Number),
+            yesText: L["btn_delete"], cancelText: L["btn_cancel"]);
+        if (confirmed != true) return;
+        await VisitSvc.DeleteAsync(v.Id);
+        _visits.RemoveAll(x => x.Id == v.Id);
+        Snackbar.Add(L["visit_deleted"], Severity.Info);
+    }
+
+    private void UpdateInList(VisitDto updated)
+    {
+        var idx = _visits.FindIndex(v => v.Id == updated.Id);
+        if (idx >= 0) _visits[idx] = updated;
+        _selected = updated;
+    }
+
+    private string GetStatusLabel(VisitStatus s) => s switch
+    {
+        VisitStatus.Pending   => L["visit_status_pending"],
+        VisitStatus.Approved  => L["visit_status_approved"],
+        VisitStatus.Rejected  => L["visit_status_rejected"],
+        VisitStatus.Cancelled => L["visit_status_cancelled"],
+        _ => s.ToString()
+    };
+
+    private static string GetStatusColor(VisitStatus s) => s switch
+    {
+        VisitStatus.Pending   => "#f59e0b",
+        VisitStatus.Approved  => "#10b981",
+        VisitStatus.Rejected  => "#ef4444",
+        VisitStatus.Cancelled => "#6b7280",
+        _ => "#6b7280"
+    };
+
+    private string GetDocLabel(DocumentType t) => t switch
+    {
+        DocumentType.Passport      => L["visit_doc_passport"],
+        DocumentType.DriverLicense => L["visit_doc_driver"],
+        _                          => L["visit_doc_other"]
+    };
+
+    private string GuestsLabel(int n) => n switch
+    {
+        1 => L["visit_guests_count_1"],
+        2 or 3 or 4 => L["visit_guests_count_2"],
+        _ => L["visit_guests_count_5"]
+    };
+
+    private class CreateFormModel
+    {
+        public string  Purpose    { get; set; } = "";
+        public string? ApproverId { get; set; }
+        public Guid?   ResourceId { get; set; }
+    }
+
+    private class GuestFormModel
+    {
+        public string       FullName       { get; set; } = "";
+        public string?      Organization   { get; set; }
+        public string?      Phone          { get; set; }
+        public DocumentType DocumentType   { get; set; } = DocumentType.Passport;
+        public string?      DocumentNumber { get; set; }
+    }
+}

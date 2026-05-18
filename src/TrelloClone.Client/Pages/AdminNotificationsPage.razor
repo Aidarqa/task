@@ -43,13 +43,6 @@
                               MaxLength="1000"
                               Counter="1000" />
 
-                <MudTextField @bind-Value="_link"
-                              Label="Ссылка (необязательно)"
-                              Placeholder="/tasks, /calendar, https://..."
-                              Variant="Variant.Outlined"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Outlined.Link" />
-
                 <div class="admin-notif-preview">
                     <MudText Typo="Typo.caption" Class="admin-notif-preview-label">Предпросмотр</MudText>
                     <div class="admin-notif-preview-card">
@@ -150,7 +143,6 @@
 @code {
     private string _title = "";
     private string _body = "";
-    private string? _link;
     private bool _sending;
     private bool _loadingHistory = true;
     private List<NotificationDto> _history = [];
@@ -200,12 +192,11 @@
         try
         {
             var sent = await NotifSvc.BroadcastAsync(
-                new BroadcastNotificationRequest(_title.Trim(), _body.Trim(), _link?.Trim()));
+                new BroadcastNotificationRequest(_title.Trim(), _body.Trim()));
 
             Snackbar.Add($"Уведомление отправлено {sent} пользователям", Severity.Success);
             _title = "";
             _body = "";
-            _link = null;
             await LoadHistoryAsync();
         }
         catch (Exception ex)

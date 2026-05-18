@@ -56,6 +56,7 @@ builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ChatClientService>();
+builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<NotificationClientService>();
 builder.Services.AddScoped<FileDownloadService>();
 builder.Services.AddScoped<AdminUserService>();
