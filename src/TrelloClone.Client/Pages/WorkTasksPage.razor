@@ -1030,7 +1030,7 @@
         var authState = await AuthState.GetAuthenticationStateAsync();
         _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
-        var usersTask = EmployeeSvc.GetAllAsync();
+        var usersTask = EmployeeSvc.GetAllAsync(excludeAdmins: true);
         var projectsTask = ProjectSvc.GetAllAsync();
 
         await Task.WhenAll(usersTask, projectsTask);

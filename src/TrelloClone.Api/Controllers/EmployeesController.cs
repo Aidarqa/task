@@ -14,9 +14,21 @@ public class EmployeesController(AppDbContext db) : ControllerBase
 
     // GET /api/employees
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] bool excludeAdmins = false)
     {
         var users = await db.Users.ToListAsync();
+
+        if (excludeAdmins)
+        {
+            var adminIds = await db.UserRoles
+                .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => new { ur.UserId, r.Name })
+                .Where(x => x.Name == SystemRoles.SuperAdmin)
+                .Select(x => x.UserId)
+                .ToHashSetAsync();
+
+            users = users.Where(u => !adminIds.Contains(u.Id)).ToList();
+        }
+
         var profiles = await db.EmployeeProfiles
             .Include(p => p.Department)
             .ToDictionaryAsync(p => p.UserId);

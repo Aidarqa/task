@@ -417,6 +417,7 @@
     private bool _loading = true;
     private string _activeTab = "bookings";
     private string _currentUserId = "";
+    private bool _isAdmin;
     private Guid? _filterResourceId;
     private Guid? _highlightedBookingId;
     private DateTime? _filterFrom = KyrgyzstanTime.Today;
@@ -496,6 +497,7 @@
     {
         var authState = await AuthState.GetAuthenticationStateAsync();
         _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+        _isAdmin = authState.User.HasClaim("perm", TrelloClone.Shared.Models.Permissions.AdminAccess);
         _resources = await BookingSvc.GetResourcesAsync();
         await LoadBookingsAsync();
         await HandleBookingIdParamAsync();
@@ -722,7 +724,7 @@
         => booking.Status == BookingStatus.Confirmed && booking.BookedById == _currentUserId;
 
     private bool CanDeleteBooking(BookingDto booking)
-        => booking.BookedById == _currentUserId;
+        => booking.BookedById == _currentUserId || _isAdmin;
 
     private bool IsCreatedByCurrentUser(BookingDto booking)
         => booking.BookedById == _currentUserId

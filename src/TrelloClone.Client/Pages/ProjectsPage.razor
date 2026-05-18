@@ -4,6 +4,7 @@
 @inject ProjectService ProjectSvc
 @inject EmployeeService EmployeeSvc
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthState
 
@@ -289,6 +290,7 @@
     private ProjectVisibility _visibility = ProjectVisibility.AllUsers;
     private IEnumerable<string> _selectedMemberIds = [];
     private string _currentUserId = string.Empty;
+    private bool _isAdmin;
     private string _color = "#579DFF";
     private readonly string[] _colorOptions = ["#579DFF", "#4CAF50", "#FF5722", "#9C27B0", "#FF9800", "#00BCD4", "#795548"];
 
@@ -299,9 +301,10 @@
         {
             var authState = await AuthState.GetAuthenticationStateAsync();
             _currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            _isAdmin = authState.User.HasClaim("perm", TrelloClone.Shared.Models.Permissions.AdminAccess);
 
             var projectsTask = ProjectSvc.GetAllAsync();
-            var usersTask = EmployeeSvc.GetAllAsync();
+            var usersTask = EmployeeSvc.GetAllAsync(excludeAdmins: true);
             await Task.WhenAll(projectsTask, usersTask);
 
             _projects = await projectsTask;
@@ -396,12 +399,24 @@
 
     private async Task DeleteProject(Guid id)
     {
+        var project = _projects.FirstOrDefault(p => p.Id == id);
+        var name = project?.Name ?? L["proj_title"];
+
+        var confirmed = await DialogService.ShowMessageBox(
+            L["proj_delete_title"],
+            string.Format(L["proj_delete_confirm"], name),
+            yesText: L["btn_delete"],
+            cancelText: L["btn_cancel"]);
+
+        if (confirmed != true) return;
+
         await ProjectSvc.DeleteAsync(id);
         _projects.RemoveAll(p => p.Id == id);
+        Snackbar.Add(L["proj_deleted"], Severity.Info);
     }
 
     private bool CanManage(Project project)
-        => project.OwnerId == _currentUserId;
+        => project.OwnerId == _currentUserId || _isAdmin;
 
     private static string FormatProjectDate(DateTime value)
         => KyrgyzstanTime.FormatDate(value);

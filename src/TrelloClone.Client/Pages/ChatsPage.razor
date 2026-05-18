@@ -365,11 +365,24 @@
                               Class="mb-3"
                               Required="true" />
 
+                <div class="cal-participants-label">
+                    <span class="cal-participants-label__text">@L["chat_members"]</span>
+                    @if (_users.Count > 0)
+                    {
+                        var allSelected = _selectedMemberIds.Count() == _users.Count;
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                   StartIcon="@(allSelected ? Icons.Material.Filled.RemoveDone : Icons.Material.Filled.DoneAll)"
+                                   OnClick="@(() => { _selectedMemberIds = allSelected ? (IEnumerable<string>)[] : _users.Select(u => u.Id).ToList(); })">
+                            @(allSelected ? L["cal_deselect_all"] : L["cal_select_all"])
+                        </MudButton>
+                    }
+                </div>
                 <MudSelect T="string"
                            @bind-SelectedValues="_selectedMemberIds"
                            Label="@L["chat_members"]"
                            MultiSelection="true"
-                           Variant="Variant.Outlined">
+                           Variant="Variant.Outlined"
+                           ToStringFunc="@(id => _users.FirstOrDefault(u => u.Id == id)?.UserName ?? id)">
                     @foreach (var u in _users)
                     {
                         <MudSelectItem Value="@u.Id">@u.UserName</MudSelectItem>
@@ -436,7 +449,7 @@
         ChatSvc.OnChatRead += OnChatRead;
         ChatSvc.OnTyping += OnTyping;
         ChatSvc.OnMessageDeleted += OnMessageDeleted;
-        _users = await EmployeeSvc.GetAllAsync();
+        _users = await EmployeeSvc.GetAllAsync(excludeAdmins: true);
         _chats = await ChatSvc.GetChatsAsync();
 
         // Auto-open chat from query param (e.g. clicked a notification)

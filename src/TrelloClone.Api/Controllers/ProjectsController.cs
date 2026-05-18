@@ -95,7 +95,9 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     {
         var p = await db.Projects.FindAsync(id);
         if (p is null) return NotFound();
-        if (p.OwnerId != CurrentUserId) return Forbid();
+
+        var isAdmin = User.HasClaim("perm", Permissions.AdminAccess);
+        if (p.OwnerId != CurrentUserId && !isAdmin) return Forbid();
 
         db.Projects.Remove(p);
         await db.SaveChangesAsync();
@@ -131,15 +133,19 @@ public class ProjectsController(AppDbContext db, INotificationService notif) : C
     }
 
     private IQueryable<Project> AccessibleProjects()
-        => db.Projects
+    {
+        var userId = CurrentUserId;
+        return db.Projects
             .Include(p => p.Members)
-            .Where(p => p.Visibility == ProjectVisibility.AllUsers
-                || p.OwnerId == CurrentUserId
-                || p.Members.Any(m => m.UserId == CurrentUserId));
+            .Where(p =>
+                p.OwnerId == userId ||                                         // created by user
+                p.Visibility == ProjectVisibility.AllUsers ||                  // visible to all
+                db.ProjectMembers.Any(m => m.ProjectId == p.Id && m.UserId == userId)); // user is member
+    }
 
     private bool CanAccess(Project project)
-        => project.Visibility == ProjectVisibility.AllUsers
-            || project.OwnerId == CurrentUserId
+        => project.OwnerId == CurrentUserId
+            || project.Visibility == ProjectVisibility.AllUsers
             || project.Members.Any(m => m.UserId == CurrentUserId);
 
     private async Task SetMembersAsync(Guid projectId, ProjectVisibility visibility, IEnumerable<string> memberIds)

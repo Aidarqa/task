@@ -181,7 +181,8 @@ public class BookingsController(AppDbContext db, INotificationService notif) : C
         if (booking is null)
             return NotFound();
 
-        if (booking.BookedById != CurrentUserId)
+        var isAdmin = User.HasClaim("perm", Permissions.AdminAccess);
+        if (booking.BookedById != CurrentUserId && !isAdmin)
             return Forbid();
 
         db.Bookings.Remove(booking);

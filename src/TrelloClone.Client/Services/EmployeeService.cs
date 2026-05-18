@@ -5,8 +5,11 @@ namespace TrelloClone.Client.Services;
 
 public class EmployeeService(HttpClient http)
 {
-    public async Task<List<UserDto>> GetAllAsync()
-        => await http.GetFromJsonAsync<List<UserDto>>("api/employees") ?? [];
+    public async Task<List<UserDto>> GetAllAsync(bool excludeAdmins = false)
+    {
+        var url = excludeAdmins ? "api/employees?excludeAdmins=true" : "api/employees";
+        return await http.GetFromJsonAsync<List<UserDto>>(url) ?? [];
+    }
 
     public async Task<UserDto?> GetAsync(string id)
         => await http.GetFromJsonAsync<UserDto>($"api/employees/{id}");
