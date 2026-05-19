@@ -7373,3 +7373,17 @@ body.light-theme .mud-nav-link.active {
 .visit-detail-icon        { flex-shrink:0; margin-top:2px; opacity:.4; }
 .visit-detail-label       { font-size:.7rem; opacity:.45; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
 .visit-detail-value       { font-size:.875rem; font-weight:500; }
+
+/* ── Settings notification prefs ── */
+.settings-notif-row {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:10px 0;
+  border-bottom:1px solid var(--mud-palette-divider);
+}
+.settings-notif-row:last-child { border-bottom:none; }
+.settings-notif-row__info { display:flex; align-items:flex-start; gap:10px; flex:1; min-width:0; }
+.settings-notif-icon { flex-shrink:0; margin-top:2px; opacity:.7; }
+.settings-notif-label { font-size:.875rem; font-weight:600; }
+.settings-notif-hint { font-size:.78rem; opacity:.55; margin-top:2px; }
+
+.settings-notif-row--sub { padding-left:28px; opacity:.85; }

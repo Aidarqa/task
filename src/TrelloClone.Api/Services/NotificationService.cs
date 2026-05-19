@@ -28,7 +28,30 @@ public class NotificationService(AppDbContext db, IHubContext<NotificationHub> h
         NotificationType type, string? link = null, string? relatedEntityId = null,
         string? senderUserId = null)
     {
-        foreach (var uid in userIds.Distinct())
-            await SendAsync(uid, title, body, type, link, relatedEntityId, senderUserId);
+        var distinctIds = userIds
+            .Where(uid => !string.IsNullOrWhiteSpace(uid))
+            .Distinct()
+            .ToList();
+
+        if (distinctIds.Count == 0) return;
+
+        // Batch insert — one SaveChangesAsync instead of N
+        var notifications = distinctIds.Select(uid => new Notification
+        {
+            UserId = uid, Title = title, Body = body,
+            NotificationType = type, Link = link,
+            RelatedEntityId = relatedEntityId, SenderUserId = senderUserId
+        }).ToList();
+
+        db.Notifications.AddRange(notifications);
+        await db.SaveChangesAsync();
+
+        // Broadcast via SignalR after all are persisted
+        foreach (var n in notifications)
+        {
+            var dto = new NotificationDto(n.Id, n.Title, n.Body, n.NotificationType, false,
+                n.CreatedAt, n.Link, n.RelatedEntityId, n.SenderUserId);
+            await hub.Clients.Group(n.UserId).SendAsync("Notification", new NotificationEvent(dto));
+        }
     }
 }

@@ -6,6 +6,7 @@
 @inject ISnackbar Snackbar
 @inject Blazored.LocalStorage.ILocalStorageService Storage
 @inject IDialogService Dialog
+@inject IJSRuntime JS
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
 
@@ -123,11 +124,133 @@
                     </MudButtonGroup>
                 </MudPaper>
 
+                @* ── Notification settings ── *@
                 <MudPaper Class="settings-section-card" Elevation="0">
                     <div class="settings-section-header">
-                        <MudText Typo="Typo.h6">Безопасность</MudText>
+                        <MudText Typo="Typo.h6">@L["settings_notif_title"]</MudText>
                         <MudText Typo="Typo.body2" Class="settings-section-subtitle">
-                            Управление паролем учётной записи
+                            @L["settings_notif_subtitle"]
+                        </MudText>
+                    </div>
+
+                    <div class="settings-notif-row">
+                        <div class="settings-notif-row__info">
+                            <MudIcon Icon="@Icons.Material.Outlined.NotificationsActive" Size="Size.Small" Class="settings-notif-icon" />
+                            <div>
+                                <div class="settings-notif-label">@L["settings_notif_browser"]</div>
+                                <div class="settings-notif-hint">
+                                    @(_browserPermission switch
+                                    {
+                                        "granted"     => L["settings_notif_browser_ok"],
+                                        "denied"      => L["settings_notif_browser_denied"],
+                                        "unsupported" => L["settings_notif_browser_no"],
+                                        _             => L["settings_notif_browser_default"]
+                                    })
+                                </div>
+                            </div>
+                        </div>
+                        @if (_browserPermission == "default")
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.NotificationsActive"
+                                       OnClick="RequestBrowserPermissionAsync">
+                                @L["settings_notif_allow"]
+                            </MudButton>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(_browserPermission == "granted" ? Color.Success : Color.Error)"
+                                     Variant="Variant.Outlined">
+                                @(_browserPermission == "granted" ? L["settings_notif_on"] : L["settings_notif_blocked"])
+                            </MudChip>
+                        }
+                    </div>
+
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.caption" Style="opacity:.55;text-transform:uppercase;letter-spacing:.05em;font-weight:700;display:block;margin-bottom:10px">
+                        @L["settings_notif_types"]
+                    </MudText>
+
+                    <MudStack Spacing="1">
+                        <div class="settings-notif-row">
+                            <div class="settings-notif-row__info">
+                                <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Small" Style="color:#8B5CF6" Class="settings-notif-icon" />
+                                <div>
+                                    <div class="settings-notif-label">@L["settings_notif_chat"]</div>
+                                    <div class="settings-notif-hint">@L["settings_notif_chat_hint"]</div>
+                                </div>
+                            </div>
+                            <MudSwitch T="bool" Value="_notifChat" ValueChanged="@(v => SaveNotifPref("notif_type_chat", v, ref _notifChat))"
+                                       Color="Color.Primary" />
+                        </div>
+                        <div class="settings-notif-row">
+                            <div class="settings-notif-row__info">
+                                <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Style="color:#F59E0B" Class="settings-notif-icon" />
+                                <div>
+                                    <div class="settings-notif-label">@L["settings_notif_task"]</div>
+                                    <div class="settings-notif-hint">@L["settings_notif_task_hint"]</div>
+                                </div>
+                            </div>
+                            <MudSwitch T="bool" Value="_notifTask" ValueChanged="@(v => SaveNotifPref("notif_type_task", v, ref _notifTask))"
+                                       Color="Color.Primary" />
+                        </div>
+                        <div class="settings-notif-row">
+                            <div class="settings-notif-row__info">
+                                <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" Style="color:#3B82F6" Class="settings-notif-icon" />
+                                <div>
+                                    <div class="settings-notif-label">@L["settings_notif_event"]</div>
+                                    <div class="settings-notif-hint">@L["settings_notif_event_hint"]</div>
+                                </div>
+                            </div>
+                            <MudSwitch T="bool" Value="_notifEvent" ValueChanged="@(v => SaveNotifPref("notif_type_event", v, ref _notifEvent))"
+                                       Color="Color.Primary" />
+                        </div>
+
+                        @if (_notifEvent)
+                        {
+                            <div class="settings-notif-row settings-notif-row--sub">
+                                <div class="settings-notif-row__info">
+                                    <MudIcon Icon="@Icons.Material.Outlined.AccessAlarm" Size="Size.Small" Style="color:#3B82F6;opacity:.7" Class="settings-notif-icon" />
+                                    <div>
+                                        <div class="settings-notif-label">@L["settings_notif_1h"]</div>
+                                        <div class="settings-notif-hint">@L["settings_notif_1h_hint"]</div>
+                                    </div>
+                                </div>
+                                <MudSwitch T="bool" Value="_notifMeeting1h" ValueChanged="@(v => SaveNotifPref("notif_meeting_1h", v, ref _notifMeeting1h))"
+                                           Color="Color.Primary" />
+                            </div>
+                            <div class="settings-notif-row settings-notif-row--sub">
+                                <div class="settings-notif-row__info">
+                                    <MudIcon Icon="@Icons.Material.Outlined.AccessAlarm" Size="Size.Small" Style="color:#3B82F6;opacity:.7" Class="settings-notif-icon" />
+                                    <div>
+                                        <div class="settings-notif-label">@L["settings_notif_30m"]</div>
+                                        <div class="settings-notif-hint">@L["settings_notif_30m_hint"]</div>
+                                    </div>
+                                </div>
+                                <MudSwitch T="bool" Value="_notifMeeting30m" ValueChanged="@(v => SaveNotifPref("notif_meeting_30m", v, ref _notifMeeting30m))"
+                                           Color="Color.Primary" />
+                            </div>
+                        }
+                        <div class="settings-notif-row">
+                            <div class="settings-notif-row__info">
+                                <MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" Style="color:#F59E0B" Class="settings-notif-icon" />
+                                <div>
+                                    <div class="settings-notif-label">@L["settings_notif_system"]</div>
+                                    <div class="settings-notif-hint">@L["settings_notif_system_hint"]</div>
+                                </div>
+                            </div>
+                            <MudSwitch T="bool" Value="_notifSystem" ValueChanged="@(v => SaveNotifPref("notif_type_system", v, ref _notifSystem))"
+                                       Color="Color.Primary" />
+                        </div>
+                    </MudStack>
+                </MudPaper>
+
+                <MudPaper Class="settings-section-card" Elevation="0">
+                    <div class="settings-section-header">
+                        <MudText Typo="Typo.h6">@L["settings_security_title"]</MudText>
+                        <MudText Typo="Typo.body2" Class="settings-section-subtitle">
+                            @L["settings_security_subtitle"]
                         </MudText>
                     </div>
 
@@ -137,7 +260,7 @@
                                    StartIcon="@Icons.Material.Filled.Password"
                                    OnClick="OpenChangePassword"
                                    Class="settings-action-btn">
-                            Сменить пароль
+                            @L["settings_password_btn"]
                         </MudButton>
                     </div>
                 </MudPaper>
@@ -156,6 +279,15 @@
     private string? _position;
     private string? _phone;
 
+    // Notification prefs
+    private string _browserPermission = "default";
+    private bool _notifChat      = true;
+    private bool _notifTask      = true;
+    private bool _notifEvent     = true;
+    private bool _notifSystem    = true;
+    private bool _notifMeeting1h  = true;
+    private bool _notifMeeting30m = true;
+
     protected override async Task OnInitializedAsync()
     {
         base.OnInitialized();
@@ -172,6 +304,16 @@
         {
             var profile = await EmployeeSvc.GetAsync(_userId);
             if (profile is not null) { _position = profile.Position; _phone = profile.Phone; }
+
+            // Load notification preferences
+            _browserPermission = await JS.InvokeAsync<string>("browserNotif.requestPermission").AsTask()
+                .ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : "default");
+            _notifChat       = await Storage.GetItemAsync<bool?>("notif_type_chat")    ?? true;
+            _notifTask       = await Storage.GetItemAsync<bool?>("notif_type_task")    ?? true;
+            _notifEvent      = await Storage.GetItemAsync<bool?>("notif_type_event")   ?? true;
+            _notifSystem     = await Storage.GetItemAsync<bool?>("notif_type_system")  ?? true;
+            _notifMeeting1h  = await Storage.GetItemAsync<bool?>("notif_meeting_1h")   ?? true;
+            _notifMeeting30m = await Storage.GetItemAsync<bool?>("notif_meeting_30m")  ?? true;
         }
         finally { _loading = false; }
     }
@@ -198,5 +340,17 @@
     {
         var dlg = await Dialog.ShowAsync<ChangePasswordDialog>("Смена пароля");
         await dlg.Result;
+    }
+
+    private async Task RequestBrowserPermissionAsync()
+    {
+        _browserPermission = await JS.InvokeAsync<string>("browserNotif.requestPermission");
+        StateHasChanged();
+    }
+
+    private void SaveNotifPref(string key, bool value, ref bool field)
+    {
+        field = value;
+        _ = Storage.SetItemAsync(key, value);
     }
 }

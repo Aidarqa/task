@@ -27,6 +27,8 @@ public partial class FileStorageService(IWebHostEnvironment env) : IFileStorageS
     public Task<Stream> OpenReadAsync(string storagePath, CancellationToken cancellationToken = default)
     {
         var absolutePath = Resolve(storagePath);
+        if (!File.Exists(absolutePath))
+            throw new FileNotFoundException("Файл не найден на диске.", absolutePath);
         Stream stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         return Task.FromResult(stream);
     }

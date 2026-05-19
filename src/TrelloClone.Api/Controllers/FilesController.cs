@@ -52,7 +52,16 @@ public class FilesController(AppDbContext db, IFileStorageService storage) : Con
             return NotFound();
         }
 
-        var stream = await storage.OpenReadAsync(attachment.StoragePath, cancellationToken);
+        Stream stream;
+        try
+        {
+            stream = await storage.OpenReadAsync(attachment.StoragePath, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound("Файл был удалён или недоступен. Загрузите файл повторно.");
+        }
+
         var escapedName = Uri.EscapeDataString(attachment.FileName);
         Response.Headers["Content-Disposition"] = download
             ? $"attachment; filename*=UTF-8''{escapedName}"

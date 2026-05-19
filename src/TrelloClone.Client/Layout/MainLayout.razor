@@ -202,6 +202,13 @@
     private int _unreadCount;
     private int _chatUnreadCount;
     private int _systemUnreadCount;
+    // Cached notification type preferences (true = enabled)
+    private bool _notifChat       = true;
+    private bool _notifTask       = true;
+    private bool _notifEvent      = true;
+    private bool _notifSystem     = true;
+    private bool _notifMeeting1h  = true;
+    private bool _notifMeeting30m = true;
     private int NonChatUnreadCount => Math.Max(0, _unreadCount - _chatUnreadCount);
     private List<NotificationDto> _recentNotifications = [];
     private readonly HashSet<Guid> _handledNotificationIds = [];
@@ -228,6 +235,7 @@
 
             await NotificationSvc.ConnectAsync();
             _ = JS.InvokeAsync<string>("browserNotif.requestPermission");
+            await LoadNotifPrefsAsync();
             _unreadCount = await NotificationSvc.GetUnreadCountAsync();
             _chatUnreadCount = await NotificationSvc.GetChatUnreadCountAsync();
             _systemUnreadCount = await NotificationSvc.GetSystemUnreadCountAsync();
@@ -264,13 +272,12 @@
             }
 
             // Always call show — JS decides based on document.visibilityState.
-            // This covers the case where the user is on /chats but the browser
-            // is minimized or focus is in another window.
-            _ = JS.InvokeVoidAsync("browserNotif.show",
-                notif.Title,
-                notif.Body,
-                notif.Link ?? "/chats",
-                $"chat-{notif.RelatedEntityId}");
+            if (_notifChat)
+                _ = JS.InvokeVoidAsync("browserNotif.show",
+                    notif.Title,
+                    notif.Body,
+                    notif.Link ?? "/chats",
+                    $"chat-{notif.RelatedEntityId}");
 
             _ = InvokeAsync(StateHasChanged);
             return;
@@ -287,11 +294,19 @@
 
         // Browser notification — JS decides whether to show based on document.visibilityState
         var notifUrl = BuildNotificationUrl(notif);
-        _ = JS.InvokeVoidAsync("browserNotif.show",
-            notif.Title,
-            notif.Body,
-            notifUrl,
-            $"notif-{notif.Id}");
+        var typeEnabled = notif.NotificationType switch
+        {
+            NotificationType.System  => _notifSystem,
+            NotificationType.Booking => _notifEvent,
+            NotificationType.Event   => GetEventNotifEnabled(notif.Body),
+            _                        => _notifTask
+        };
+        if (typeEnabled)
+            _ = JS.InvokeVoidAsync("browserNotif.show",
+                notif.Title,
+                notif.Body,
+                notifUrl,
+                $"notif-{notif.Id}");
 
         _ = InvokeAsync(StateHasChanged);
     }
@@ -393,6 +408,31 @@
     {
         _ = RefreshCountsAsync();
         _ = EnsureHubConnectedAsync();
+        // Always reload notification prefs — picks up changes the user made in Settings
+        _ = LoadNotifPrefsAsync();
+    }
+
+    private bool GetEventNotifEnabled(string? body)
+    {
+        if (!_notifEvent) return false;
+        if (body is null) return true;
+        if (body.StartsWith("Через 1 час",    StringComparison.OrdinalIgnoreCase)) return _notifMeeting1h;
+        if (body.StartsWith("Через 30 минут", StringComparison.OrdinalIgnoreCase)) return _notifMeeting30m;
+        return true; // other event notifications (invitations etc.)
+    }
+
+    private async Task LoadNotifPrefsAsync()
+    {
+        try
+        {
+            _notifChat       = await Storage.GetItemAsync<bool?>("notif_type_chat")    ?? true;
+            _notifTask       = await Storage.GetItemAsync<bool?>("notif_type_task")    ?? true;
+            _notifEvent      = await Storage.GetItemAsync<bool?>("notif_type_event")   ?? true;
+            _notifSystem     = await Storage.GetItemAsync<bool?>("notif_type_system")  ?? true;
+            _notifMeeting1h  = await Storage.GetItemAsync<bool?>("notif_meeting_1h")   ?? true;
+            _notifMeeting30m = await Storage.GetItemAsync<bool?>("notif_meeting_30m")  ?? true;
+        }
+        catch { }
     }
 
     private async Task EnsureHubConnectedAsync()
