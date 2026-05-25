@@ -1,5 +1,4 @@
 services:
-  # Наш уже рабочий Бэкенд
   task-manager-api:
     build:
       context: .
@@ -15,7 +14,6 @@ services:
     networks:
       - isc-network
 
-  # Наш новый Фронтенд
   task-manager-client:
     build:
       context: .
@@ -23,7 +21,9 @@ services:
     container_name: task-manager-client
     restart: always
     ports:
-      - "80:80"   # Открываем стандартный веб-порт HTTP
+      - "3000:80"
+    volumes:
+      - ./config/appsettings.json:/usr/share/nginx/html/appsettings.json:ro
     networks:
       - isc-network
 
