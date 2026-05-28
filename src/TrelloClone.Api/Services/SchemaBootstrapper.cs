@@ -109,14 +109,41 @@ public static class SchemaBootstrapper
             CREATE INDEX IF NOT EXISTS "IX_WorkTaskAssignees_UserId" ON "WorkTaskAssignees" ("UserId");
             ALTER TABLE "WorkTaskAssignees" ADD COLUMN IF NOT EXISTS "AssignedByName" text NOT NULL DEFAULT '';
 
-            -- Migrate existing single-assignee rows into WorkTaskAssignees
-            INSERT INTO "WorkTaskAssignees" ("Id", "TaskId", "UserId", "UserName", "IsOwnerAssigned", "AssignedById", "AssignedAt")
-            SELECT gen_random_uuid(), t."Id", t."AssigneeId", COALESCE(t."AssigneeName", ''), true, t."AuthorId", t."CreatedAt"
-            FROM "WorkTasks" t
-            WHERE t."AssigneeId" IS NOT NULL
-              AND NOT EXISTS (
-                  SELECT 1 FROM "WorkTaskAssignees" a WHERE a."TaskId" = t."Id"
-              );
+            -- Migrate existing single-assignee rows into WorkTaskAssignees.
+            -- Fresh databases already use WorkTaskAssignees and do not have these legacy columns.
+            DO $$
+            DECLARE
+                has_assignee_name boolean;
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'WorkTasks'
+                      AND column_name = 'AssigneeId'
+                ) THEN
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_name = 'WorkTasks'
+                          AND column_name = 'AssigneeName'
+                    )
+                    INTO has_assignee_name;
+
+                    EXECUTE format(
+                        'INSERT INTO "WorkTaskAssignees" ("Id", "TaskId", "UserId", "UserName", "IsOwnerAssigned", "AssignedById", "AssignedAt")
+                         SELECT gen_random_uuid(), t."Id", t."AssigneeId", %s, true, t."AuthorId", t."CreatedAt"
+                         FROM "WorkTasks" t
+                         WHERE t."AssigneeId" IS NOT NULL
+                           AND NOT EXISTS (
+                               SELECT 1 FROM "WorkTaskAssignees" a WHERE a."TaskId" = t."Id"
+                           )',
+                        CASE
+                            WHEN has_assignee_name THEN 'COALESCE(t."AssigneeName", '''')'
+                            ELSE ''''''
+                        END
+                    );
+                END IF;
+            END $$;
 
             -- ── RBAC ──────────────────────────────────────────────
             ALTER TABLE "Users"

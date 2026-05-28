@@ -7387,3 +7387,640 @@ body.light-theme .mud-nav-link.active {
 .settings-notif-hint { font-size:.78rem; opacity:.55; margin-top:2px; }
 
 .settings-notif-row--sub { padding-left:28px; opacity:.85; }
+
+/* ==========================================================================
+   Enterprise Redesign Overrides
+   ========================================================================== */
+:root {
+  --enterprise-bg: #f5f7fb;
+  --enterprise-bg-2: #eef2f7;
+  --enterprise-surface: #ffffff;
+  --enterprise-surface-raised: #ffffff;
+  --enterprise-sidebar: #111827;
+  --enterprise-sidebar-2: #162033;
+  --enterprise-line: #d9e1ec;
+  --enterprise-line-soft: #e8edf4;
+  --enterprise-text: #172033;
+  --enterprise-muted: #647084;
+  --enterprise-faint: #8c98aa;
+  --enterprise-primary: #1e4d8c;
+  --enterprise-primary-2: #2563a8;
+  --enterprise-teal: #0f766e;
+  --enterprise-amber: #b7791f;
+  --enterprise-red: #c2413b;
+  --enterprise-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.05);
+  --enterprise-shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.08), 0 16px 34px rgba(15, 23, 42, 0.08);
+  --enterprise-radius: 8px;
+  --enterprise-radius-sm: 6px;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 247, 251, 0.84)),
+    radial-gradient(circle at 18% 0%, rgba(30, 77, 140, 0.08), transparent 30%),
+    var(--enterprise-bg);
+  color: var(--enterprise-text);
+}
+
+body {
+  letter-spacing: 0;
+}
+
+.mud-typography,
+.mud-button,
+.mud-input,
+.mud-nav-link,
+.mud-table {
+  letter-spacing: 0 !important;
+}
+
+.mud-button-root {
+  border-radius: var(--enterprise-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+.mud-button-filled-primary {
+  background: var(--enterprise-primary) !important;
+}
+
+.mud-button-filled-primary:hover {
+  background: #173e73 !important;
+}
+
+.mud-input-outlined .mud-input-outlined-border {
+  border-color: var(--enterprise-line) !important;
+}
+
+.mud-input-control,
+.mud-input-root,
+.mud-select,
+.mud-picker {
+  border-radius: var(--enterprise-radius-sm) !important;
+}
+
+.mud-paper,
+.mud-card,
+.mud-dialog,
+.mud-popover,
+.mud-menu,
+.mud-table-container {
+  border-radius: var(--enterprise-radius) !important;
+}
+
+.mud-dialog,
+.mud-popover,
+.mud-menu {
+  box-shadow: var(--enterprise-shadow-hover) !important;
+  border: 1px solid var(--enterprise-line-soft);
+}
+
+.app-topbar {
+  height: 56px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: var(--enterprise-text) !important;
+  border-bottom: 1px solid var(--enterprise-line) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+.app-topbar .mud-icon-button {
+  color: var(--enterprise-muted) !important;
+  border-radius: var(--enterprise-radius-sm) !important;
+}
+
+.app-topbar .mud-icon-button:hover {
+  color: var(--enterprise-primary) !important;
+  background: rgba(30, 77, 140, 0.08) !important;
+}
+
+.app-logo {
+  font-weight: 800 !important;
+  color: var(--enterprise-text) !important;
+  letter-spacing: 0 !important;
+}
+
+.app-logo::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 22px;
+  margin-right: 10px;
+  vertical-align: -4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--enterprise-primary), var(--enterprise-teal));
+}
+
+.lang-switcher .mud-button-root {
+  min-width: 38px;
+  height: 32px;
+  border-color: var(--enterprise-line) !important;
+}
+
+.user-name-text {
+  color: var(--enterprise-muted) !important;
+  font-weight: 650 !important;
+}
+
+.sidebar-drawer .mud-drawer-content {
+  background:
+    linear-gradient(180deg, var(--enterprise-sidebar), var(--enterprise-sidebar-2)) !important;
+  border-right: 0 !important;
+  color: #dbe4f0 !important;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-nav {
+  padding: 14px 10px !important;
+  gap: 2px;
+}
+
+.sidebar-section-label {
+  padding: 18px 10px 7px !important;
+  color: rgba(219, 228, 240, 0.5) !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+}
+
+.sidebar-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  margin-top: auto !important;
+  padding-top: 10px;
+}
+
+.mud-nav-link {
+  min-height: 40px !important;
+  border-radius: var(--enterprise-radius-sm) !important;
+  margin: 2px 0 !important;
+  padding: 0 10px !important;
+  color: rgba(219, 228, 240, 0.78) !important;
+  font-weight: 650 !important;
+}
+
+.mud-nav-link .mud-nav-link-text {
+  font-size: 0.88rem !important;
+}
+
+.mud-nav-link .mud-nav-link-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: var(--enterprise-radius-sm) !important;
+  color: rgba(219, 228, 240, 0.74) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+.mud-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.mud-nav-link.active {
+  background: #ffffff !important;
+  color: var(--enterprise-primary) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.mud-nav-link.active .mud-nav-link-icon {
+  color: #ffffff !important;
+  background: var(--enterprise-primary) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.main-content-area {
+  background: transparent !important;
+  min-height: calc(100vh - 56px);
+}
+
+.home-page,
+.dashboard-page,
+.tasks-shell,
+.projects-page,
+.calendar-page,
+.bookings-page,
+.visits-page,
+.employees-page,
+.todo-page,
+.notifications-page-modern,
+.admin-notif-page,
+.settings-page,
+.help-page {
+  background: transparent !important;
+  padding: 24px !important;
+  color: var(--enterprise-text) !important;
+}
+
+.home-hero,
+.dashboard-hero,
+.tasks-hero,
+.projects-hero,
+.calendar-hero,
+.booking-toolbar,
+.visits-toolbar,
+.employees-hero,
+.todo-hero,
+.notifications-hero,
+.admin-notif-hero,
+.settings-hero,
+.help-hero {
+  border-radius: var(--enterprise-radius) !important;
+  border: 1px solid var(--enterprise-line) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.96)) !important;
+  box-shadow: var(--enterprise-shadow) !important;
+}
+
+.home-page-title,
+.dashboard-page-title,
+.tasks-page-title,
+.projects-page-title,
+.calendar-page-title,
+.booking-page-title,
+.visits-page-title,
+.employees-page-title,
+.todo-page-title,
+.notifications-page-title,
+.admin-notif-title,
+.settings-page-title,
+.help-page-title {
+  color: var(--enterprise-text) !important;
+  font-weight: 800 !important;
+}
+
+.home-page-subtitle,
+.dashboard-page-subtitle,
+.tasks-page-subtitle,
+.projects-page-subtitle,
+.calendar-page-subtitle,
+.booking-page-subtitle,
+.visits-page-subtitle,
+.employees-page-subtitle,
+.todo-page-subtitle,
+.notifications-page-subtitle,
+.admin-notif-subtitle,
+.settings-page-subtitle,
+.help-page-subtitle {
+  color: var(--enterprise-muted) !important;
+  opacity: 1 !important;
+}
+
+.home-loading,
+.home-empty-state,
+.dashboard-loading,
+.dashboard-card-modern,
+.stat-card-modern,
+.tasks-column,
+.tasks-detail-panel,
+.tasks-scroll-panel,
+.projects-card,
+.project-card,
+.calendar-card,
+.booking-card,
+.visit-card,
+.employees-card,
+.todo-card,
+.notifications-filter-card,
+.notifications-empty-state,
+.notification-card-modern,
+.admin-notif-form-card,
+.admin-notif-history-card,
+.settings-card,
+.help-card {
+  background: var(--enterprise-surface) !important;
+  border: 1px solid var(--enterprise-line-soft) !important;
+  border-radius: var(--enterprise-radius) !important;
+  box-shadow: var(--enterprise-shadow) !important;
+}
+
+.stat-card-modern,
+.dashboard-card-modern,
+.board-card-modern,
+.notification-card-modern,
+.booking-card,
+.visit-card,
+.project-card {
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease !important;
+}
+
+.stat-card-modern:hover,
+.dashboard-card-modern:hover,
+.board-card-modern:hover,
+.notification-card-modern:hover,
+.booking-card:hover,
+.visit-card:hover,
+.project-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(30, 77, 140, 0.32) !important;
+  box-shadow: var(--enterprise-shadow-hover) !important;
+}
+
+.dashboard-stats-grid {
+  gap: 14px !important;
+}
+
+.stat-card-modern {
+  min-height: 112px;
+  padding: 18px !important;
+  cursor: pointer;
+}
+
+.stat-icon-modern {
+  border-radius: var(--enterprise-radius-sm) !important;
+  background: #edf3fb !important;
+}
+
+.stat-icon-modern--blue {
+  color: var(--enterprise-primary) !important;
+}
+
+.stat-icon-modern--green {
+  color: var(--enterprise-teal) !important;
+  background: #eaf7f5 !important;
+}
+
+.stat-icon-modern--red {
+  color: var(--enterprise-red) !important;
+  background: #fff0ef !important;
+}
+
+.stat-icon-modern--purple {
+  color: #5b5bb8 !important;
+  background: #f0f0ff !important;
+}
+
+.stat-value-modern {
+  color: var(--enterprise-text) !important;
+  font-weight: 800 !important;
+}
+
+.stat-label-modern,
+.dashboard-empty-hint,
+.dashboard-due-modern,
+.notification-card-modern__text,
+.notification-meta-pill,
+.task-attachment-meta {
+  color: var(--enterprise-muted) !important;
+}
+
+.dashboard-card-header-modern,
+.admin-notif-form-header {
+  border-bottom: 1px solid var(--enterprise-line-soft) !important;
+}
+
+.dashboard-task-row-modern,
+.dashboard-event-row-modern,
+.admin-notif-history-item,
+.admin-notif-preview-card {
+  border-radius: var(--enterprise-radius-sm) !important;
+  background: #f8fafc !important;
+  border: 1px solid var(--enterprise-line-soft) !important;
+}
+
+.dashboard-task-row-modern:hover {
+  background: #f1f5fb !important;
+}
+
+.status-chip,
+.priority-chip,
+.notification-card-modern__badge,
+.notification-meta-pill {
+  border-radius: 999px !important;
+  font-weight: 750 !important;
+}
+
+.board-card-modern {
+  min-height: 184px !important;
+  border-radius: var(--enterprise-radius) !important;
+  border-color: rgba(23, 32, 51, 0.1) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--board-color) 76%, #0f172a), var(--board-color)) !important;
+}
+
+.board-card-modern__bg {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.1), rgba(0,0,0,0.2)) !important;
+}
+
+.board-card-modern__badge,
+.board-card-modern__delete {
+  border-radius: var(--enterprise-radius-sm) !important;
+}
+
+.auth-page {
+  min-height: calc(100vh - 56px) !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: 0 !important;
+  background:
+    linear-gradient(90deg, #111827 0%, #172033 44%, #f5f7fb 44%, #f5f7fb 100%) !important;
+}
+
+.auth-page::before {
+  content: "TaskFlow";
+  position: absolute;
+  left: clamp(28px, 7vw, 96px);
+  top: clamp(28px, 8vh, 90px);
+  z-index: 1;
+  color: #ffffff;
+  font-size: clamp(2.2rem, 5vw, 5.8rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.auth-page__bg {
+  display: none !important;
+}
+
+.auth-card-modern {
+  width: min(440px, calc(100vw - 32px)) !important;
+  margin: auto clamp(24px, 8vw, 120px) auto auto !important;
+  padding: 34px !important;
+  border-radius: var(--enterprise-radius) !important;
+  border: 1px solid var(--enterprise-line) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14) !important;
+  backdrop-filter: none !important;
+}
+
+.auth-brand-badge {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: var(--enterprise-radius) !important;
+  background: var(--enterprise-primary) !important;
+  box-shadow: none !important;
+}
+
+.auth-title {
+  color: var(--enterprise-text) !important;
+}
+
+.auth-subtitle {
+  color: var(--enterprise-muted) !important;
+}
+
+.auth-submit-btn {
+  height: 46px !important;
+  border-radius: var(--enterprise-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+.kanban-column,
+.kanban-column-modern {
+  border-radius: var(--enterprise-radius) !important;
+}
+
+.kanban-card,
+.kanban-card-modern {
+  border-radius: var(--enterprise-radius-sm) !important;
+}
+
+.task-attachment-card {
+  border-radius: var(--enterprise-radius) !important;
+  background: var(--enterprise-surface) !important;
+  box-shadow: var(--enterprise-shadow) !important;
+}
+
+.file-picker-trigger--task-icon,
+.task-attachment-icon,
+.task-attachment-action-buttons,
+.notif-dropdown,
+.notif-dropdown .mud-menu-item,
+.notif-dropdown-icon,
+.notification-card-modern__icon {
+  border-radius: var(--enterprise-radius-sm) !important;
+}
+
+body:not(.light-theme) {
+  --enterprise-bg: #0f172a;
+  --enterprise-bg-2: #111827;
+  --enterprise-surface: #182235;
+  --enterprise-surface-raised: #1f2b40;
+  --enterprise-line: rgba(226, 232, 240, 0.13);
+  --enterprise-line-soft: rgba(226, 232, 240, 0.09);
+  --enterprise-text: #e5eaf2;
+  --enterprise-muted: #9aa8bd;
+  --enterprise-faint: #77859a;
+  --enterprise-primary: #7da7e8;
+  --enterprise-primary-2: #9bb7d7;
+  --enterprise-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
+  --enterprise-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+body:not(.light-theme),
+body:not(.light-theme) #app {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 1)),
+    radial-gradient(circle at 20% 0%, rgba(125, 167, 232, 0.12), transparent 32%),
+    var(--enterprise-bg) !important;
+}
+
+body:not(.light-theme) .app-topbar,
+body:not(.light-theme) .home-hero,
+body:not(.light-theme) .dashboard-hero,
+body:not(.light-theme) .tasks-hero,
+body:not(.light-theme) .projects-hero,
+body:not(.light-theme) .calendar-hero,
+body:not(.light-theme) .booking-toolbar,
+body:not(.light-theme) .visits-toolbar,
+body:not(.light-theme) .employees-hero,
+body:not(.light-theme) .todo-hero,
+body:not(.light-theme) .notifications-hero,
+body:not(.light-theme) .admin-notif-hero,
+body:not(.light-theme) .settings-hero,
+body:not(.light-theme) .help-hero,
+body:not(.light-theme) .home-loading,
+body:not(.light-theme) .home-empty-state,
+body:not(.light-theme) .dashboard-loading,
+body:not(.light-theme) .dashboard-card-modern,
+body:not(.light-theme) .stat-card-modern,
+body:not(.light-theme) .tasks-column,
+body:not(.light-theme) .tasks-detail-panel,
+body:not(.light-theme) .tasks-scroll-panel,
+body:not(.light-theme) .notification-card-modern,
+body:not(.light-theme) .admin-notif-form-card,
+body:not(.light-theme) .admin-notif-history-card,
+body:not(.light-theme) .settings-card,
+body:not(.light-theme) .help-card {
+  background: var(--enterprise-surface) !important;
+  border-color: var(--enterprise-line-soft) !important;
+}
+
+body:not(.light-theme) .dashboard-task-row-modern,
+body:not(.light-theme) .dashboard-event-row-modern,
+body:not(.light-theme) .admin-notif-history-item,
+body:not(.light-theme) .admin-notif-preview-card {
+  background: var(--enterprise-surface-raised) !important;
+  border-color: var(--enterprise-line-soft) !important;
+}
+
+body:not(.light-theme) .auth-page {
+  background:
+    linear-gradient(90deg, #070b14 0%, #111827 44%, #0f172a 44%, #0f172a 100%) !important;
+}
+
+body:not(.light-theme) .auth-card-modern {
+  background: var(--enterprise-surface) !important;
+  border-color: var(--enterprise-line-soft) !important;
+}
+
+@media (max-width: 960px) {
+  .home-page,
+  .dashboard-page,
+  .tasks-shell,
+  .projects-page,
+  .calendar-page,
+  .bookings-page,
+  .visits-page,
+  .employees-page,
+  .todo-page,
+  .notifications-page-modern,
+  .admin-notif-page,
+  .settings-page,
+  .help-page {
+    padding: 16px !important;
+  }
+
+  .auth-page {
+    background: var(--enterprise-bg) !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 16px !important;
+  }
+
+  .auth-page::before {
+    display: none;
+  }
+
+  .auth-card-modern {
+    margin: auto !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .home-page,
+  .dashboard-page,
+  .tasks-shell,
+  .projects-page,
+  .calendar-page,
+  .bookings-page,
+  .visits-page,
+  .employees-page,
+  .todo-page,
+  .notifications-page-modern,
+  .admin-notif-page,
+  .settings-page,
+  .help-page {
+    padding: 12px !important;
+  }
+
+  .app-logo::before {
+    display: none;
+  }
+}

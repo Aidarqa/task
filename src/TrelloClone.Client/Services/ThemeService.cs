@@ -2,7 +2,7 @@ namespace TrelloClone.Client.Services;
 
 public class ThemeService
 {
-    public bool IsDark { get; private set; } = true;
+    public bool IsDark { get; private set; }
     public event Action? Changed;
 
     public void Toggle() { IsDark = !IsDark; Changed?.Invoke(); }

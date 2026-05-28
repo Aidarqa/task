@@ -32,12 +32,18 @@
 
 @code {
     private MudThemeProvider _themeProvider = null!;
-    private bool _isDarkMode = true;
+    private bool _isDarkMode;
 
     protected override void OnInitialized()
     {
         _isDarkMode = ThemeSvc.IsDark;
         ThemeSvc.Changed += OnThemeChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("document.body.classList.toggle", "light-theme", !_isDarkMode);
     }
 
     private void OnThemeChanged()
@@ -53,43 +59,47 @@
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#0079BF",
-            Secondary = "#5BA4CF",
-            AppbarBackground = "#026AA7",
-            Background = "#F4F5F7",
+            Primary = "#1E4D8C",
+            Secondary = "#0F766E",
+            AppbarBackground = "#FFFFFF",
+            Background = "#F5F7FB",
             Surface = "#FFFFFF",
             DrawerBackground = "#FFFFFF",
-            Success = "#61BD4F",
-            Warning = "#F2D600",
-            Error = "#EB5A46",
-            Info = "#00C2E0"
+            Success = "#198754",
+            Warning = "#B7791F",
+            Error = "#C2413B",
+            Info = "#2563A8",
+            TextPrimary = "#172033",
+            TextSecondary = "#647084"
         },
         PaletteDark = new PaletteDark
         {
-            Primary = "#579DFF",
-            Secondary = "#388BFF",
-            Tertiary = "#6CC3E0",
-            AppbarBackground = "#1D2125",
-            Background = "#1D2125",
-            Surface = "#282E33",
-            DrawerBackground = "#282E33",
-            Success = "#4BCE97",
-            Warning = "#F5CD47",
-            Error = "#F87168",
-            Info = "#6CC3E0",
-            TextPrimary = "#B6C2CF",
-            TextSecondary = "#8C9BAB"
+            Primary = "#7DA7E8",
+            Secondary = "#55B3A9",
+            Tertiary = "#9BB7D7",
+            AppbarBackground = "#111827",
+            Background = "#0F172A",
+            Surface = "#182235",
+            DrawerBackground = "#111827",
+            Success = "#47C083",
+            Warning = "#D8A642",
+            Error = "#EF6A61",
+            Info = "#7DA7E8",
+            TextPrimary = "#E5EAF2",
+            TextSecondary = "#9AA8BD"
         },
         Typography = new Typography
         {
             Default = new DefaultTypography
             {
-                FontFamily = ["'Cera Pro'", "'Segoe UI'", "sans-serif"],
+                FontFamily = ["'Cera Pro'", "'Inter'", "'Segoe UI'", "sans-serif"],
                 FontSize = "0.875rem"
             },
+            H4 = new H4Typography { FontWeight = "700" },
             H5 = new H5Typography { FontWeight = "700" },
-            H6 = new H6Typography { FontWeight = "600" }
+            H6 = new H6Typography { FontWeight = "650" },
+            Button = new ButtonTypography { FontWeight = "650", TextTransform = "none" }
         },
-        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "8px" }
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "6px" }
     };
 }
