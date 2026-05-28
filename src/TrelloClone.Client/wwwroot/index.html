@@ -72,14 +72,35 @@
 </head>
 <body>
     <div id="app">
-        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1D2125;">
-            <div style="text-align:center;">
-                <svg width="48" height="48" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;">
-                    <circle cx="12" cy="12" r="10" stroke="#579DFF" stroke-width="3" fill="none" stroke-dasharray="31.4" stroke-linecap="round"/>
-                </svg>
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1526 25%,#111d3a 50%,#0f1a30 75%,#080d1a 100%);position:relative;overflow:hidden;">
+            <!-- Floating orbs -->
+            <div style="position:absolute;top:15%;left:10%;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(87,157,255,0.08),transparent 70%);filter:blur(40px);animation:orb1 8s ease-in-out infinite alternate;"></div>
+            <div style="position:absolute;bottom:10%;right:10%;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(171,105,245,0.06),transparent 70%);filter:blur(50px);animation:orb2 10s ease-in-out infinite alternate;"></div>
+            <div style="position:absolute;bottom:20%;left:40%;width:350px;height:350px;border-radius:50%;background:radial-gradient(circle,rgba(34,211,238,0.05),transparent 70%);filter:blur(45px);animation:orb3 12s ease-in-out infinite alternate;"></div>
+
+            <!-- Glass loading card -->
+            <div style="position:relative;z-index:1;text:center;background:rgba(255,255,255,0.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.10);border-radius:24px;padding:40px 48px;box-shadow:0 8px 32px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.08);">
+                <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:24px;">
+                    <svg width="44" height="44" viewBox="0 0 24 24" style="animation:spin 1.2s linear infinite;">
+                        <circle cx="12" cy="12" r="10" stroke="url(#loaderGrad)" stroke-width="2.5" fill="none" stroke-dasharray="31.4" stroke-linecap="round"/>
+                        <defs>
+                            <linearGradient id="loaderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#579dff"/>
+                                <stop offset="100%" stop-color="#22d3ee"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div style="font-family:'Cera Pro','Inter','Segoe UI',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:-0.03em;background:linear-gradient(135deg,#579dff,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">TaskFlow</div>
+                <div style="font-family:'Cera Pro','Inter','Segoe UI',sans-serif;color:rgba(255,255,255,0.4);font-size:0.78rem;margin-top:8px;">Loading workspace...</div>
             </div>
         </div>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        <style>
+            @keyframes spin{to{transform:rotate(360deg)}}
+            @keyframes orb1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(30px,-20px) scale(1.1)}}
+            @keyframes orb2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-20px,30px) scale(1.05)}}
+            @keyframes orb3{0%{transform:translate(0,0) scale(1)}100%{transform:translate(15px,15px) scale(1.08)}}
+        </style>
     </div>
 
     <script src="_framework/blazor.webassembly.js"></script>
